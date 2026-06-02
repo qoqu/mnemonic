@@ -22,9 +22,9 @@ body {
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: var(--bg); color: var(--text); padding: 24px; max-width: 1400px; margin: 0 auto;
 }
-h1 { font-size: 20px; font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+h1 { font-size: 20px; font-weight: 600; color: var(--accent); }
 .subtitle { color: var(--dim); font-size: 13px; margin-bottom: 20px; }
-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; margin-bottom: 4px; }
 
 /* Stats */
 .stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
@@ -72,7 +72,6 @@ td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align:
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: rgba(88,166,255,.04); }
 .col-content { min-width: 200px; max-width: 400px; word-break: break-word; }
-.col-tags { min-width: 80px; }
 .tag {
   display: inline-block; background: rgba(88,166,255,.12); color: var(--accent);
   border-radius: 4px; padding: 1px 6px; font-size: 11px; margin: 1px 2px 1px 0;
@@ -85,6 +84,49 @@ tr:hover td { background: rgba(88,166,255,.04); }
 .badge-p { background: rgba(188,140,255,.15); color: var(--purple); }
 .col-actions { white-space: nowrap; }
 .col-time { white-space: nowrap; font-size: 12px; color: var(--dim); }
+
+/* Timeline */
+.timeline-section { margin-top: 20px; }
+.timeline-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.timeline {
+  position: relative; padding-left: 24px;
+}
+.timeline::before {
+  content: ''; position: absolute; left: 8px; top: 4px; bottom: 4px;
+  width: 2px; background: var(--border);
+}
+.tick {
+  position: relative; padding: 8px 12px; margin-bottom: 6px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  transition: border-color .15s;
+}
+.tick:hover { border-color: var(--accent); }
+.tick::before {
+  content: ''; position: absolute; left: -20px; top: 14px;
+  width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--border);
+  background: var(--bg);
+}
+.tick.exploring::before { border-color: var(--accent); background: var(--accent); }
+.tick.building::before { border-color: var(--orange); background: var(--orange); }
+.tick.fixing::before    { border-color: var(--red); background: var(--red); }
+.tick.reviewing::before { border-color: var(--purple); background: var(--purple); }
+.tick.idle::before      { border-color: var(--dim); }
+.tick.done::before      { border-color: var(--green); background: var(--green); }
+.tick-header {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;
+}
+.tick-status {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px;
+  padding: 1px 6px; border-radius: 4px; background: rgba(139,148,158,.15); color: var(--dim);
+}
+.tick.exploring .tick-status { background: rgba(88,166,255,.15); color: var(--accent); }
+.tick.building .tick-status  { background: rgba(210,153,34,.15); color: var(--orange); }
+.tick.fixing .tick-status    { background: rgba(248,81,73,.15); color: var(--red); }
+.tick.reviewing .tick-status { background: rgba(188,140,255,.15); color: var(--purple); }
+.tick.done .tick-status      { background: rgba(63,185,80,.15); color: var(--green); }
+.tick-time { font-size: 11px; color: var(--dim); }
+.tick-project { font-size: 11px; color: var(--accent); background: rgba(88,166,255,.1); padding: 1px 6px; border-radius: 4px; }
+.tick-content { font-size: 13px; line-height: 1.4; }
 
 /* Modal */
 .modal-overlay {
@@ -106,12 +148,8 @@ tr:hover td { background: rgba(88,166,255,.04); }
 .form-group textarea { min-height: 80px; resize: vertical; }
 .form-group input:focus, .form-group textarea:focus { border-color: var(--accent); }
 .form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
-
-/* Empty */
 .empty { text-align: center; padding: 40px; color: var(--dim); }
 .empty p { margin-top: 8px; font-size: 13px; }
-
-/* Loading */
 .loading { text-align: center; padding: 20px; color: var(--dim); }
 </style>
 </head>
@@ -137,14 +175,15 @@ tr:hover td { background: rgba(88,166,255,.04); }
   </select>
   <input type="text" id="filter-namespace" placeholder="Filter namespace…" style="width:140px" oninput="loadMemories()">
   <input type="text" id="filter-project" placeholder="Filter project…" style="width:140px" oninput="loadMemories()">
-  <label style="color:var(--dim);font-size:13px;cursor:pointer;white-space:nowrap">
-    <input type="checkbox" id="show-ticks" onchange="loadMemories()" style="accent-color:var(--accent);vertical-align:middle">
-    <span style="vertical-align:middle">Show ticks</span>
+  <label class="btn btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px">
+    <input type="checkbox" id="show-ticks" onchange="loadMemories()" style="accent-color:var(--accent);margin:0">
+    <span>Timeline</span>
   </label>
   <span id="count-label" style="color:var(--dim);font-size:13px;margin-left:auto"></span>
 </div>
 
-<div class="table-wrap">
+<!-- Memory Table -->
+<div class="table-wrap" id="memory-table-wrap">
   <table>
     <thead>
       <tr>
@@ -165,6 +204,12 @@ tr:hover td { background: rgba(88,166,255,.04); }
     <p>No memories found</p>
   </div>
   <div id="loading-state" class="loading" style="display:none">Loading…</div>
+</div>
+
+<!-- Session Timeline -->
+<div id="timeline-section" class="timeline-section" style="display:none">
+  <div class="timeline-title">📋 Session Timeline</div>
+  <div class="timeline" id="timeline-container"></div>
 </div>
 
 <!-- Add/Edit Modal -->
@@ -224,8 +269,7 @@ function escapeHtml(s) {
 
 function badge(level) {
   const m = { global: ['g','G'], namespace: ['n','N'], project: ['p','P'] };
-  const [cls, label] = m[level] || ['g', level];
-  return `<span class="badge badge-${cls}">${label}</span>`;
+  return `<span class="badge badge-${m[level]?.[0]||'g'}">${m[level]?.[1]||level}</span>`;
 }
 
 function renderTags(tags) {
@@ -245,8 +289,18 @@ function formatTime(t) {
   return d.toLocaleDateString();
 }
 
-// ── Stats ───────────────────────────────────────────────────────────
+function fmtDate(t) {
+  if (!t) return '';
+  const d = new Date(t);
+  return d.toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+}
 
+function statusIcon(s) {
+  const icons = { exploring:'🔍', building:'🏗️', fixing:'🔧', reviewing:'👀', idle:'💤', done:'✅' };
+  return icons[s] || '🔹';
+}
+
+// ── Stats ───────────────────────────────────────────────────────────
 async function loadStats() {
   const stats = await api('/api/stats');
   document.getElementById('stats').innerHTML = `
@@ -258,67 +312,89 @@ async function loadStats() {
   `;
 }
 
-// ── Memories ─────────────────────────────────────────────────────────
-
+// ── Load ────────────────────────────────────────────────────────────
 async function loadMemories() {
   const tbody = document.getElementById('memories-tbody');
   const empty = document.getElementById('empty-state');
   const loading = document.getElementById('loading-state');
+  const timelineSec = document.getElementById('timeline-section');
 
   loading.style.display = 'block';
   tbody.innerHTML = '';
   empty.style.display = 'none';
+  timelineSec.style.display = 'none';
 
   const query = document.getElementById('search-input').value;
   const level = document.getElementById('filter-level').value;
   const ns = document.getElementById('filter-namespace').value;
   const proj = document.getElementById('filter-project').value;
+  const showTicks = document.getElementById('show-ticks').checked;
 
   const params = new URLSearchParams();
   if (query) params.set('query', query);
   if (level) params.set('levels', level);
   if (ns) params.set('namespace', ns);
   if (proj) params.set('project', proj);
-  params.set('limit', '100');
+  params.set('limit', '200');
 
-  const memories = await api('/api/memories?' + params.toString());
+  const all = await api('/api/memories?' + params.toString());
+  const memories = all.filter(m => !m.tags || !m.tags.includes('session-log'));
+  const ticks = all.filter(m => m.tags && m.tags.includes('session-log'));
+
   loading.style.display = 'none';
 
-  document.getElementById('count-label').textContent = memories.length + ' entries';
-
+  // Table
   if (!memories || memories.length === 0) {
     empty.style.display = 'block';
-    return;
+  } else {
+    tbody.innerHTML = memories.map((m, i) => `
+      <tr>
+        <td style="color:var(--dim);font-size:11px">${i+1}</td>
+        <td class="col-content">${escapeHtml(m.content)}</td>
+        <td>${badge(m.level)}</td>
+        <td style="font-size:12px;color:var(--dim)">${escapeHtml(m.namespace)}</td>
+        <td style="font-size:12px;color:var(--dim)">${escapeHtml(m.project) || '—'}</td>
+        <td>${renderTags(m.tags)}</td>
+        <td class="col-time" title="${m.created}">${formatTime(m.created)}</td>
+        <td class="col-actions">
+          <button class="btn btn-sm" onclick="openEditModal('${m.id}')">✎</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteMemory('${m.id}')">✕</button>
+        </td>
+      </tr>
+    `).join('');
   }
 
-  const showTicks = document.getElementById('show-ticks').checked;
-  const filtered = showTicks ? memories : memories.filter(m => !m.tags || !m.tags.includes('session-log'));
-  document.getElementById('count-label').textContent = filtered.length + ' entries' + (showTicks ? '' : ' (+' + (memories.length - filtered.length) + ' ticks)');
-
-  if (!filtered || filtered.length === 0) {
-    empty.style.display = 'block';
-    return;
+  // Timeline
+  if (showTicks && ticks.length > 0) {
+    timelineSec.style.display = 'block';
+    let lastDate = '';
+    document.getElementById('timeline-container').innerHTML = ticks.map(t => {
+      const status = (t.tags || []).find(s => ['exploring','building','fixing','reviewing','idle','done'].includes(s)) || '';
+      const content = t.content.replace(/^\[.*?\]\s*/, '');
+      const dateLabel = fmtDate(t.created);
+      const dateGroup = dateLabel.split(',')[0];
+      let dateHeader = '';
+      if (dateGroup !== lastDate) {
+        lastDate = dateGroup;
+        dateHeader = `<div style="font-size:11px;color:var(--dim);margin:16px 0 4px -16px;font-weight:600">${dateGroup}</div>`;
+      }
+      return dateHeader + `<div class="tick ${status}">
+        <div class="tick-header">
+          <span class="tick-status">${statusIcon(status)} ${status || 'tick'}</span>
+          <span class="tick-time">${dateLabel}</span>
+          ${t.project ? `<span class="tick-project">${escapeHtml(t.project)}</span>` : ''}
+          <span style="margin-left:auto;font-size:11px;color:var(--dim)">${formatTime(t.created)}</span>
+        </div>
+        <div class="tick-content">${escapeHtml(content)}</div>
+      </div>`;
+    }).join('');
   }
 
-  tbody.innerHTML = filtered.map((m, i) => `
-    <tr${m.tags && m.tags.includes('session-log') ? ' style="opacity:.5"' : ''}>
-      <td style="color:var(--dim);font-size:11px">${i+1}</td>
-      <td class="col-content">${m.tags && m.tags.includes('session-log') ? '🔹 ' : ''}${escapeHtml(m.content)}</td>
-      <td>${badge(m.level)}</td>
-      <td style="font-size:12px;color:var(--dim)">${escapeHtml(m.namespace)}</td>
-      <td style="font-size:12px;color:var(--dim)">${escapeHtml(m.project) || '—'}</td>
-      <td class="col-tags">${renderTags(m.tags)}</td>
-      <td class="col-time" title="${m.created}">${formatTime(m.created)}</td>
-      <td class="col-actions">
-        <button class="btn btn-sm" onclick="openEditModal('${m.id}')">✎</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteMemory('${m.id}')">✕</button>
-      </td>
-    </tr>
-  `).join('');
+  document.getElementById('count-label').textContent =
+    memories.length + ' memories' + (ticks.length ? ' (' + ticks.length + ' ticks)' : '');
 }
 
 // ── Add / Edit ──────────────────────────────────────────────────────
-
 function openAddModal() {
   editingId = null;
   document.getElementById('modal-title').textContent = 'Add memory';
@@ -330,8 +406,8 @@ function openAddModal() {
 }
 
 async function openEditModal(id) {
-  const memories = await api('/api/memories');
-  const m = memories.find(x => x.id === id);
+  const all = await api('/api/memories');
+  const m = all.find(x => x.id === id);
   if (!m) return;
   editingId = id;
   document.getElementById('modal-title').textContent = 'Edit memory';
@@ -350,26 +426,17 @@ function closeModal() {
 async function saveMemory() {
   const content = document.getElementById('modal-content').value.trim();
   if (!content) return alert('Content is required');
-
   const data = {
     content,
     level: document.getElementById('modal-level').value,
     tags: document.getElementById('modal-tags').value.split(',').map(s => s.trim()).filter(Boolean),
     source: document.getElementById('modal-source').value.trim(),
   };
-
   if (editingId) {
-    await api('/api/memories/' + editingId, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
+    await api('/api/memories/' + editingId, { method: 'PUT', body: JSON.stringify(data) });
   } else {
-    await api('/api/memories', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+    await api('/api/memories', { method: 'POST', body: JSON.stringify(data) });
   }
-
   closeModal();
   loadMemories();
   loadStats();
@@ -383,7 +450,6 @@ async function deleteMemory(id) {
 }
 
 // ── Init ────────────────────────────────────────────────────────────
-
 loadStats();
 loadMemories();
 </script>
