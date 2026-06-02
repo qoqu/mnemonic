@@ -44,34 +44,6 @@ function rowsToMemories(rows) {
   }));
 }
 
-// ── 查询构建 ─────────────────────────────────────────────────────────
-
-function buildScopeFilter(opts) {
-  const conditions = [];
-  const params = [];
-
-  if (opts.levels && opts.levels.length > 0) {
-    const ph = opts.levels.map(() => '?');
-    conditions.push(`level IN (${ph.join(',')})`);
-    params.push(...opts.levels);
-  }
-
-  if (opts.namespace) {
-    conditions.push('namespace = ?');
-    params.push(opts.namespace);
-  }
-
-  if (opts.project) {
-    conditions.push('project = ?');
-    params.push(opts.project);
-  }
-
-  return {
-    where: conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '',
-    params,
-  };
-}
-
 // ── CRUD ─────────────────────────────────────────────────────────────
 
 export function add({ content, level, namespace, project, tags, source }) {
@@ -91,33 +63,35 @@ export function add({ content, level, namespace, project, tags, source }) {
 
 export function search({ query, levels, namespace, project, limit = 20 }) {
   const db = getDb();
+  const conditions = [];
+  const params = [];
 
   if (query && query.trim()) {
-    const scope = buildScopeFilter({ levels, namespace, project });
-    const sql = `
-      SELECT m.*
-      FROM memories_fts f
-      JOIN memories m ON f.rowid = m.rowid
-      ${scope.where ? `${scope.where} AND` : 'WHERE'} memories_fts MATCH ?
-      ORDER BY rank
-      LIMIT ?
-    `;
-    const rows = db.prepare(sql).all(...scope.params, query.trim(), limit);
-    const memories = rowsToMemories(rows);
-
-    if (memories.length > 0) {
-      const ids = memories.map(m => m.id);
-      const ph = ids.map(() => '?');
-      db.prepare(`UPDATE memories SET access_count = access_count + 1 WHERE id IN (${ph.join(',')})`).run(...ids);
-    }
-
-    return memories;
+    const like = `%${query.trim()}%`;
+    conditions.push('(content LIKE ? OR tags LIKE ?)');
+    params.push(like, like);
   }
 
-  const scope = buildScopeFilter({ levels, namespace, project });
-  const sql = `SELECT * FROM memories ${scope.where} ORDER BY updated DESC LIMIT ?`;
-  const rows = db.prepare(sql).all(...scope.params, limit);
-  return rowsToMemories(rows);
+  if (levels && levels.length > 0) {
+    const ph = levels.map(() => '?');
+    conditions.push(`level IN (${ph.join(',')})`);
+    params.push(...levels);
+  }
+
+  if (namespace) { conditions.push('namespace = ?'); params.push(namespace); }
+  if (project) { conditions.push('project = ?'); params.push(project); }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const rows = db.prepare(`SELECT * FROM memories ${where} ORDER BY updated DESC LIMIT ?`).all(...params, limit);
+  const memories = rowsToMemories(rows);
+
+  if (memories.length > 0) {
+    const ids = memories.map(m => m.id);
+    const ph = ids.map(() => '?');
+    db.prepare(`UPDATE memories SET access_count = access_count + 1 WHERE id IN (${ph.join(',')})`).run(...ids);
+  }
+
+  return memories;
 }
 
 export function remove({ id, old_text, namespace }) {

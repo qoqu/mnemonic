@@ -6,15 +6,9 @@
  * 3-layer isolation (global / namespace / project),
  * shared across Hermes-Agent, OpenClaw, Claude Code, etc.
  *
- * Dual-mode transport:
- *   stdio (default) — single machine, MCP host spawns the process
- *   HTTP/SSE        — cross-device, set MNEMONIC_PORT=3456
- *
- * Usage:
- *   node src/index.js                          # stdio, namespace=default
- *   MNEMONIC_NAMESPACE=hermes node src/index.js
- *   MNEMONIC_PORT=3456 node src/index.js       # HTTP mode on port 3456
- *   MNEMONIC_PORT=3456 MNEMONIC_NAMESPACE=hermes node src/index.js
+ * Dual-mode transport + admin UI (HTTP mode only):
+ *   stdio (default)  — single machine
+ *   MNEMONIC_PORT    — HTTP/SSE + admin UI at http://localhost:PORT/
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -25,9 +19,14 @@ import {
   CallToolRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { createServer } from 'http';
-import { randomUUID } from 'crypto';
+import { readFileSync, existsSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { getDb, close } from './db.js';
 import { TOOLS, createHandlers } from './tools.js';
+import * as store from './store.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ── Config ────────────────────────────────────────────────────────────
 
@@ -59,99 +58,172 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const { name, arguments: args } = req.params;
   const handler = handlers[name];
   if (!handler) {
-    return {
-      content: [{ type: 'text', text: JSON.stringify({ error: `Unknown tool: ${name}` }) }],
-      isError: true,
-    };
+    return { content: [{ type: 'text', text: JSON.stringify({ error: `Unknown tool: ${name}` }) }], isError: true };
   }
-  try {
-    return handler(args || {});
-  } catch (err) {
-    return {
-      content: [{ type: 'text', text: JSON.stringify({ error: err.message }) }],
-      isError: true,
-    };
-  }
+  try { return handler(args || {}); }
+  catch (err) { return { content: [{ type: 'text', text: JSON.stringify({ error: err.message }) }], isError: true }; }
 });
 
 // ── SSEServerTransport 池 ────────────────────────────────────────────
-// 每个 SSE 连接有一个 transport，按 sessionId 索引
+
 const transports = new Map();
 
-// ── HTTP / SSE mode ──────────────────────────────────────────────────
+// ── JSON response helpers ────────────────────────────────────────────
+
+function json(res, data, status = 200) {
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(data));
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try { resolve(JSON.parse(body)); }
+      catch { reject(new Error('Invalid JSON')); }
+    });
+    req.on('error', reject);
+  });
+}
+
+// ── Admin HTML ────────────────────────────────────────────────────────
+
+const ADMIN_HTML_PATH = join(__dirname, 'admin.html');
+let adminHtml = '';
+
+function loadAdminHtml() {
+  if (existsSync(ADMIN_HTML_PATH)) {
+    adminHtml = readFileSync(ADMIN_HTML_PATH, 'utf8');
+  }
+}
+
+// ── REST API routes ───────────────────────────────────────────────────
+
+function handleApi(req, res, url) {
+  const method = req.method;
+  const pathname = url.pathname;
+  const searchParams = url.searchParams;
+
+  // GET /api/memories — search / list
+  if (method === 'GET' && pathname === '/api/memories') {
+    const memories = store.search({
+      query: searchParams.get('query') || '',
+      levels: searchParams.get('levels') ? searchParams.get('levels').split(',') : undefined,
+      namespace: searchParams.get('namespace') || undefined,
+      project: searchParams.get('project') || undefined,
+      limit: parseInt(searchParams.get('limit') || '50', 10),
+    });
+    return json(res, memories);
+  }
+
+  // GET /api/stats
+  if (method === 'GET' && pathname === '/api/stats') {
+    return json(res, store.stats());
+  }
+
+  // POST /api/memories — add
+  if (method === 'POST' && pathname === '/api/memories') {
+    readBody(req).then(body => {
+      const result = store.add({
+        content: body.content,
+        level: body.level || 'auto',
+        namespace: body.namespace || sessionContext.namespace,
+        project: body.project || sessionContext.project || '',
+        tags: body.tags,
+        source: body.source || '',
+      });
+      json(res, result, 201);
+    }).catch(err => json(res, { error: err.message }, 400));
+    return;
+  }
+
+  // PUT /api/memories/:id — update
+  const putMatch = pathname.match(/^\/api\/memories\/(.+)$/);
+  if (method === 'PUT' && putMatch) {
+    const id = putMatch[1];
+    readBody(req).then(body => {
+      const result = store.update({ id, content: body.content, tags: body.tags, source: body.source });
+      json(res, result);
+    }).catch(err => json(res, { error: err.message }, 400));
+    return;
+  }
+
+  // DELETE /api/memories/:id — delete
+  const delMatch = pathname.match(/^\/api\/memories\/(.+)$/);
+  if (method === 'DELETE' && delMatch) {
+    const result = store.remove({ id: delMatch[1] });
+    json(res, result);
+    return;
+  }
+
+  json(res, { error: 'Not found' }, 404);
+}
+
+// ── HTTP Server ──────────────────────────────────────────────────────
 
 function startHttpMode() {
+  loadAdminHtml();
+
   const httpServer = createServer((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const pathname = url.pathname;
 
-    // CORS headers
+    // CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-    if (req.method === 'OPTIONS') {
-      res.writeHead(204);
-      res.end();
+    if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+    // Admin UI
+    if (req.method === 'GET' && (pathname === '/' || pathname === '/index.html')) {
+      if (adminHtml) {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(adminHtml);
+      } else {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Admin UI not found (admin.html missing). Run from the mnemonic project root.');
+      }
       return;
     }
 
-    // ── SSE endpoint ──────────────────────────────────────────
+    // REST API
+    if (pathname.startsWith('/api/')) {
+      return handleApi(req, res, url);
+    }
+
+    // SSE endpoint
     if (req.method === 'GET' && pathname === '/sse') {
       const transport = new SSEServerTransport('/message', res);
       transports.set(transport.sessionId, transport);
-      res.on('close', () => {
-        transports.delete(transport.sessionId);
-      });
-
-      server.connect(transport).catch(err => {
-        process.stderr.write(`[mnemonic] SSE connect error: ${err.message}\n`);
-      });
+      res.on('close', () => transports.delete(transport.sessionId));
+      server.connect(transport).catch(err => process.stderr.write(`[mnemonic] SSE error: ${err.message}\n`));
       return;
     }
 
-    // ── Health check ─────────────────────────────────────────
+    // Health
     if (req.method === 'GET' && pathname === '/health') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
+      return json(res, {
         status: 'ok',
         namespace: sessionContext.namespace,
         project: sessionContext.project || null,
         transports: transports.size,
-      }));
-      return;
+      });
     }
 
-    // ── Message endpoint (POST /message?sessionId=xxx) ──────
+    // Message
     if (req.method === 'POST' && pathname === '/message') {
       const sessionId = url.searchParams.get('sessionId');
       const transport = sessionId ? transports.get(sessionId) : null;
-
-      if (!transport) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Session not found' }));
-        return;
-      }
-
-      let body = '';
-      req.on('data', chunk => body += chunk);
-      req.on('end', () => {
-        let parsed;
-        try {
-          parsed = JSON.parse(body);
-        } catch {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Invalid JSON' }));
-          return;
-        }
+      if (!transport) { return json(res, { error: 'Session not found' }, 404); }
+      readBody(req).then(parsed => {
         transport.handlePostMessage(req, res, parsed);
-      });
+      }).catch(err => json(res, { error: err.message }, 400));
       return;
     }
 
-    // ── Fallback ─────────────────────────────────────────────
-    res.writeHead(404, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Not found. Use GET /sse, POST /message, or GET /health' }));
+    json(res, { error: 'Not found' }, 404);
   });
 
   httpServer.listen(PORT, '0.0.0.0', () => {
@@ -166,25 +238,15 @@ function startHttpMode() {
 async function startStdioMode() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  process.stderr.write(
-    `[mnemonic] stdio mode | ns=${sessionContext.namespace} proj=${sessionContext.project || '-'}\n`,
-  );
+  process.stderr.write(`[mnemonic] stdio mode | ns=${sessionContext.namespace} proj=${sessionContext.project || '-'}\n`);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────
 
 function main() {
-  getDb(); // init DB
-
-  if (PORT > 0) {
-    startHttpMode();
-  } else {
-    startStdioMode().catch((err) => {
-      process.stderr.write(`[mnemonic] fatal: ${err.message}\n`);
-      close();
-      process.exit(1);
-    });
-  }
+  getDb();
+  if (PORT > 0) { startHttpMode(); }
+  else { startStdioMode().catch(err => { process.stderr.write(`[mnemonic] fatal: ${err.message}\n`); close(); process.exit(1); }); }
 }
 
 main();

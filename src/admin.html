@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mnemonic · memory manager</title>
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --border: #30363d;
+  --text: #e6edf3;
+  --dim: #8b949e;
+  --accent: #58a6ff;
+  --green: #3fb950;
+  --orange: #d29922;
+  --red: #f85149;
+  --purple: #bc8cff;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg); color: var(--text); padding: 24px; max-width: 1400px; margin: 0 auto;
+}
+h1 { font-size: 20px; font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+.subtitle { color: var(--dim); font-size: 13px; margin-bottom: 20px; }
+header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+
+/* Stats */
+.stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px 20px; min-width: 100px;
+}
+.stat-card .num { font-size: 24px; font-weight: 700; }
+.stat-card .label { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
+.stat-card.g .num { color: var(--green); }
+.stat-card.n .num { color: var(--orange); }
+.stat-card.p .num { color: var(--purple); }
+.stat-card.t .num { color: var(--accent); }
+
+/* Toolbar */
+.toolbar {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px;
+}
+.toolbar input, .toolbar select {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); padding: 6px 10px; font-size: 13px; outline: none;
+}
+.toolbar input:focus, .toolbar select:focus { border-color: var(--accent); }
+.toolbar input[type=search] { flex: 1; min-width: 200px; }
+.toolbar select { min-width: 100px; }
+.btn {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); padding: 6px 14px; font-size: 13px; cursor: pointer; white-space: nowrap;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-primary:hover { background: #79b8ff; }
+.btn-danger { border-color: var(--red); color: var(--red); }
+.btn-danger:hover { background: var(--red); color: #fff; }
+.btn-sm { padding: 3px 8px; font-size: 12px; }
+
+/* Table */
+.table-wrap {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow-x: auto;
+}
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead { background: #0d1117; }
+th { text-align: left; padding: 10px 12px; color: var(--dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(88,166,255,.04); }
+.col-content { min-width: 200px; max-width: 400px; word-break: break-word; }
+.col-tags { min-width: 80px; }
+.tag {
+  display: inline-block; background: rgba(88,166,255,.12); color: var(--accent);
+  border-radius: 4px; padding: 1px 6px; font-size: 11px; margin: 1px 2px 1px 0;
+}
+.badge {
+  display: inline-block; border-radius: 4px; padding: 1px 6px; font-size: 11px; font-weight: 600;
+}
+.badge-g { background: rgba(63,185,80,.15); color: var(--green); }
+.badge-n { background: rgba(210,153,34,.15); color: var(--orange); }
+.badge-p { background: rgba(188,140,255,.15); color: var(--purple); }
+.col-actions { white-space: nowrap; }
+.col-time { white-space: nowrap; font-size: 12px; color: var(--dim); }
+
+/* Modal */
+.modal-overlay {
+  display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,.6); align-items: center; justify-content: center; z-index: 100;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 24px; width: 480px; max-width: 90vw; max-height: 80vh; overflow-y: auto;
+}
+.modal h2 { font-size: 16px; margin-bottom: 16px; }
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; font-size: 12px; color: var(--dim); margin-bottom: 4px; }
+.form-group input, .form-group textarea, .form-group select {
+  width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); padding: 8px 10px; font-size: 13px; outline: none;
+}
+.form-group textarea { min-height: 80px; resize: vertical; }
+.form-group input:focus, .form-group textarea:focus { border-color: var(--accent); }
+.form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+/* Empty */
+.empty { text-align: center; padding: 40px; color: var(--dim); }
+.empty p { margin-top: 8px; font-size: 13px; }
+
+/* Loading */
+.loading { text-align: center; padding: 20px; color: var(--dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🧠 mnemonic</h1>
+    <div class="subtitle">memory manager · <span id="ns-label">ns=default</span></div>
+  </div>
+  <button class="btn btn-primary" onclick="openAddModal()">+ Add memory</button>
+</header>
+
+<div class="stats" id="stats"></div>
+
+<div class="toolbar">
+  <input type="search" id="search-input" placeholder="Search memories…" oninput="debouncedLoad()">
+  <select id="filter-level" onchange="loadMemories()">
+    <option value="">All levels</option>
+    <option value="global">global</option>
+    <option value="namespace">namespace</option>
+    <option value="project">project</option>
+  </select>
+  <input type="text" id="filter-namespace" placeholder="Filter namespace…" style="width:140px" oninput="loadMemories()">
+  <input type="text" id="filter-project" placeholder="Filter project…" style="width:140px" oninput="loadMemories()">
+  <span id="count-label" style="color:var(--dim);font-size:13px;margin-left:auto"></span>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:40px">#</th>
+        <th>Content</th>
+        <th style="width:80px">Level</th>
+        <th style="width:100px">Namespace</th>
+        <th style="width:100px">Project</th>
+        <th style="width:100px">Tags</th>
+        <th style="width:120px">Created</th>
+        <th style="width:100px">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="memories-tbody"></tbody>
+  </table>
+  <div id="empty-state" class="empty" style="display:none">
+    <div>📭</div>
+    <p>No memories found</p>
+  </div>
+  <div id="loading-state" class="loading" style="display:none">Loading…</div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2 id="modal-title">Add memory</h2>
+    <div class="form-group">
+      <label>Content *</label>
+      <textarea id="modal-content" placeholder="Memory content…"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Level</label>
+      <select id="modal-level">
+        <option value="auto">auto</option>
+        <option value="global">global</option>
+        <option value="namespace">namespace</option>
+        <option value="project">project</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Tags (comma-separated)</label>
+      <input id="modal-tags" placeholder="coding-style, typescript">
+    </div>
+    <div class="form-group">
+      <label>Source</label>
+      <input id="modal-source" placeholder="e.g., user correction, code review">
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveMemory()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let editingId = null;
+let debounceTimer = null;
+
+function debouncedLoad() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(loadMemories, 300);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  return res.json();
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function badge(level) {
+  const m = { global: ['g','G'], namespace: ['n','N'], project: ['p','P'] };
+  const [cls, label] = m[level] || ['g', level];
+  return `<span class="badge badge-${cls}">${label}</span>`;
+}
+
+function renderTags(tags) {
+  if (!tags || tags.length === 0) return '';
+  return tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
+}
+
+function formatTime(t) {
+  if (!t) return '';
+  const d = new Date(t);
+  const now = new Date();
+  const diff = (now - d) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  if (diff < 604800) return Math.floor(diff/86400) + 'd ago';
+  return d.toLocaleDateString();
+}
+
+// ── Stats ───────────────────────────────────────────────────────────
+
+async function loadStats() {
+  const stats = await api('/api/stats');
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card t"><div class="num">${stats.total}</div><div class="label">Total</div></div>
+    <div class="stat-card g"><div class="num">${stats.by_level?.global || 0}</div><div class="label">Global</div></div>
+    <div class="stat-card n"><div class="num">${stats.by_level?.namespace || 0}</div><div class="label">Namespace</div></div>
+    <div class="stat-card p"><div class="num">${stats.by_level?.project || 0}</div><div class="label">Project</div></div>
+    <div class="stat-card t"><div class="num">${stats.recent_7d}</div><div class="label">Last 7 days</div></div>
+  `;
+}
+
+// ── Memories ─────────────────────────────────────────────────────────
+
+async function loadMemories() {
+  const tbody = document.getElementById('memories-tbody');
+  const empty = document.getElementById('empty-state');
+  const loading = document.getElementById('loading-state');
+
+  loading.style.display = 'block';
+  tbody.innerHTML = '';
+  empty.style.display = 'none';
+
+  const query = document.getElementById('search-input').value;
+  const level = document.getElementById('filter-level').value;
+  const ns = document.getElementById('filter-namespace').value;
+  const proj = document.getElementById('filter-project').value;
+
+  const params = new URLSearchParams();
+  if (query) params.set('query', query);
+  if (level) params.set('levels', level);
+  if (ns) params.set('namespace', ns);
+  if (proj) params.set('project', proj);
+  params.set('limit', '100');
+
+  const memories = await api('/api/memories?' + params.toString());
+  loading.style.display = 'none';
+
+  document.getElementById('count-label').textContent = memories.length + ' entries';
+
+  if (!memories || memories.length === 0) {
+    empty.style.display = 'block';
+    return;
+  }
+
+  tbody.innerHTML = memories.map((m, i) => `
+    <tr>
+      <td style="color:var(--dim);font-size:11px">${i+1}</td>
+      <td class="col-content">${escapeHtml(m.content)}</td>
+      <td>${badge(m.level)}</td>
+      <td style="font-size:12px;color:var(--dim)">${escapeHtml(m.namespace)}</td>
+      <td style="font-size:12px;color:var(--dim)">${escapeHtml(m.project) || '—'}</td>
+      <td class="col-tags">${renderTags(m.tags)}</td>
+      <td class="col-time" title="${m.created}">${formatTime(m.created)}</td>
+      <td class="col-actions">
+        <button class="btn btn-sm" onclick="openEditModal('${m.id}')">✎</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteMemory('${m.id}')">✕</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+// ── Add / Edit ──────────────────────────────────────────────────────
+
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modal-title').textContent = 'Add memory';
+  document.getElementById('modal-content').value = '';
+  document.getElementById('modal-level').value = 'auto';
+  document.getElementById('modal-tags').value = '';
+  document.getElementById('modal-source').value = '';
+  document.getElementById('modal').classList.add('open');
+}
+
+async function openEditModal(id) {
+  const memories = await api('/api/memories');
+  const m = memories.find(x => x.id === id);
+  if (!m) return;
+  editingId = id;
+  document.getElementById('modal-title').textContent = 'Edit memory';
+  document.getElementById('modal-content').value = m.content || '';
+  document.getElementById('modal-level').value = m.level || 'auto';
+  document.getElementById('modal-tags').value = (m.tags || []).join(', ');
+  document.getElementById('modal-source').value = m.source || '';
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+  editingId = null;
+}
+
+async function saveMemory() {
+  const content = document.getElementById('modal-content').value.trim();
+  if (!content) return alert('Content is required');
+
+  const data = {
+    content,
+    level: document.getElementById('modal-level').value,
+    tags: document.getElementById('modal-tags').value.split(',').map(s => s.trim()).filter(Boolean),
+    source: document.getElementById('modal-source').value.trim(),
+  };
+
+  if (editingId) {
+    await api('/api/memories/' + editingId, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  } else {
+    await api('/api/memories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  closeModal();
+  loadMemories();
+  loadStats();
+}
+
+async function deleteMemory(id) {
+  if (!confirm('Delete this memory?')) return;
+  await api('/api/memories/' + id, { method: 'DELETE' });
+  loadMemories();
+  loadStats();
+}
+
+// ── Init ────────────────────────────────────────────────────────────
+
+loadStats();
+loadMemories();
+</script>
+</body>
+</html>

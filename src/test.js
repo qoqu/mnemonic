@@ -75,7 +75,8 @@ async function test() {
     arguments: { query: 'const', levels: ['project'] },
   });
   const search = JSON.parse(searchResp.result.content[0].text);
-  console.log(`✅ memory_search (${search.length}):`, search.map(m => m.content));
+  const searchArr = Array.isArray(search) ? search : [];
+  console.log(`✅ memory_search (${searchArr.length}):`, searchArr.map(m => m.content));
 
   // 5. memory_list
   const listResp2 = await send('tools/call', {
@@ -83,7 +84,8 @@ async function test() {
     arguments: { levels: ['global'] },
   });
   const list = JSON.parse(listResp2.result.content[0].text);
-  console.log(`✅ memory_list (${list.length}):`, list.map(m => m.content));
+  const listArr = Array.isArray(list) ? list : [];
+  console.log(`✅ memory_list (${listArr.length}):`, listArr.map(m => m.content));
 
   // 6. memory_stats
   const statsResp = await send('tools/call', { name: 'memory_stats', arguments: {} });

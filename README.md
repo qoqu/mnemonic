@@ -123,8 +123,9 @@ For cross-device setups, point `MNEMONIC_DB_DIR` to a shared filesystem (NAS / S
 
 ## Storage
 
-- SQLite + FTS5, single file: `data/memories.db`
+- SQLite, single file: `data/memories.db`
 - Created automatically on first run
+- Full-text search via LIKE (compatible with all Node.js SQLite builds)
 - Database location can be changed via `MNEMONIC_DB_DIR`
 
 ## Test

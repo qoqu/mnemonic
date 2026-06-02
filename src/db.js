@@ -2,8 +2,8 @@
  * mnemonic — 数据库层
  *
  * 使用 Node 22+ 内置 node:sqlite 模块（同步 API），无需原生编译。
- * 单文件存储 + FTS5 全文搜索。
- * 每条记忆带 level / namespace / project 三层隔离。
+ * 单文件存储，三层隔离。
+ * 全文搜索用 LIKE（兼容所有 Node 版本的 SQLite 实现）。
  */
 
 import { DatabaseSync } from 'node:sqlite';
@@ -33,6 +33,12 @@ export function getDb() {
 }
 
 function initSchema(db) {
+  // 清理：旧版本遗留的 FTS 虚拟表和触发器（在所有 Node 版本中安全执行）
+  try { db.exec('DROP TRIGGER IF EXISTS memories_ai'); } catch {}
+  try { db.exec('DROP TRIGGER IF EXISTS memories_ad'); } catch {}
+  try { db.exec('DROP TRIGGER IF EXISTS memories_au'); } catch {}
+  try { db.exec('DROP TABLE IF EXISTS memories_fts'); } catch {}
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS memories (
       id TEXT PRIMARY KEY,
@@ -52,31 +58,6 @@ function initSchema(db) {
 
     CREATE INDEX IF NOT EXISTS idx_memories_updated
       ON memories(updated DESC);
-
-    -- FTS5 全文搜索
-    CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
-      content, tags,
-      content=memories, content_rowid=rowid,
-      tokenize='unicode61'
-    );
-
-    -- 自动同步 FTS 的触发器
-    CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
-      INSERT INTO memories_fts(rowid, content, tags)
-      VALUES (new.rowid, new.content, new.tags);
-    END;
-
-    CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
-      INSERT INTO memories_fts(memories_fts, rowid, content, tags)
-      VALUES ('delete', old.rowid, old.content, old.tags);
-    END;
-
-    CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
-      INSERT INTO memories_fts(memories_fts, rowid, content, tags)
-      VALUES ('delete', old.rowid, old.content, old.tags);
-      INSERT INTO memories_fts(rowid, content, tags)
-      VALUES (new.rowid, new.content, new.tags);
-    END;
   `);
 }
 

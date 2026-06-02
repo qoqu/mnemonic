@@ -123,7 +123,8 @@ curl http://localhost:3456/health
 
 ## 存储
 
-- SQLite + FTS5，单文件 `data/memories.db`
+- SQLite，单文件 `data/memories.db`
+- 全文搜索使用 LIKE（兼容所有 Node.js 版本的 SQLite 实现）
 - 首次运行自动创建，无需手动初始化
 - 可通过 `MNEMONIC_DB_DIR` 修改数据库位置
 
