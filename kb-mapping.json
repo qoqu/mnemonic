@@ -1,47 +1,21 @@
 {
-  "_comment": "Project → Knowledge Base mapping. Used by export_to_kb.",
+  "_comment": "Project → Knowledge Base mapping. Customize for your vault.",
   "default_kb": "memory",
   "inbox": "📥",
   "projects": {
-    "zidu-novel-studio": {
+    "my-project": {
       "kb": "memory",
       "type": "fact",
-      "description": "自研项目 — 导出到 记忆/"
+      "description": "Your own project → exported to memory/"
     },
-    "novel-world-engine": {
-      "kb": "memory",
-      "type": "fact",
-      "description": "自研项目 — 导出到 记忆/"
-    },
-    "UUMit": {
+    "external-research": {
       "kb": "neurons",
       "type": "concept",
-      "description": "外部平台经验 — 导出到 神经元/"
-    },
-    "DeepSeek-Reasonix": {
-      "kb": "neurons",
-      "type": "concept",
-      "description": "研究分析 — 导出到 神经元/"
-    },
-    "Edge 插件": {
-      "kb": "neurons",
-      "type": "concept",
-      "description": "研究分析 — 导出到 神经元/"
-    },
-    "reasonix-buddy": {
-      "kb": "neurons",
-      "type": "concept",
-      "description": "研究分析 — 导出到 神经元/"
-    },
-    "个人知识库": {
-      "kb": "memory",
-      "type": "fact",
-      "description": "自研项目 — 导出到 记忆/"
+      "description": "Research analysis → exported to neurons/"
     }
   },
   "tag_overrides": {
     "借鉴": { "kb": "neurons", "type": "concept" },
-    "研究": { "kb": "neurons", "type": "concept" },
-    "开源": { "kb": "neurons", "type": "concept" }
+    "research": { "kb": "neurons", "type": "concept" }
   }
 }
