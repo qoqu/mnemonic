@@ -138,12 +138,15 @@ function handleApi(req, res, url) {
     return;
   }
 
-  // PUT /api/memories/:id — update
+  // PUT /api/memories/:id — update (supports content, tags, source, level, project)
   const putMatch = pathname.match(/^\/api\/memories\/(.+)$/);
   if (method === 'PUT' && putMatch) {
     const id = putMatch[1];
     readBody(req).then(body => {
-      const result = store.update({ id, content: body.content, tags: body.tags, source: body.source });
+      const result = store.update({
+        id, content: body.content, tags: body.tags,
+        source: body.source, level: body.level, project: body.project,
+      });
       json(res, result);
     }).catch(err => json(res, { error: err.message }, 400));
     return;

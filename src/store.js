@@ -112,7 +112,7 @@ export function remove({ id, old_text, namespace }) {
   return { deleted: false, error: '需要 id 或 old_text' };
 }
 
-export function update({ id, content, tags, source }) {
+export function update({ id, content, tags, source, level, project }) {
   const db = getDb();
   const ts = now();
   const updates = [];
@@ -121,6 +121,8 @@ export function update({ id, content, tags, source }) {
   if (content !== undefined) { updates.push('content = ?'); params.push(content); }
   if (tags !== undefined) { updates.push('tags = ?'); params.push(parseTags(tags)); }
   if (source !== undefined) { updates.push('source = ?'); params.push(source); }
+  if (level !== undefined) { updates.push('level = ?'); params.push(level); }
+  if (project !== undefined) { updates.push('project = ?'); params.push(project); }
   if (updates.length === 0) return { updated: false };
 
   updates.push('updated = ?');
@@ -133,9 +135,19 @@ export function update({ id, content, tags, source }) {
 
 export function list({ levels, namespace, project, limit = 50 }) {
   const db = getDb();
-  const scope = buildScopeFilter({ levels, namespace, project });
-  const sql = `SELECT * FROM memories ${scope.where} ORDER BY updated DESC LIMIT ?`;
-  const rows = db.prepare(sql).all(...scope.params, limit);
+  const conditions = [];
+  const params = [];
+
+  if (levels && levels.length > 0) {
+    const ph = levels.map(() => '?');
+    conditions.push(`level IN (${ph.join(',')})`);
+    params.push(...levels);
+  }
+  if (namespace) { conditions.push('namespace = ?'); params.push(namespace); }
+  if (project) { conditions.push('project = ?'); params.push(project); }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const rows = db.prepare(`SELECT * FROM memories ${where} ORDER BY updated DESC LIMIT ?`).all(...params, limit);
   return rowsToMemories(rows);
 }
 
