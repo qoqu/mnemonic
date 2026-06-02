@@ -86,8 +86,7 @@ tr:hover td { background: rgba(88,166,255,.04); }
 .col-time { white-space: nowrap; font-size: 12px; color: var(--dim); }
 
 /* Timeline */
-.timeline-section { margin-top: 20px; }
-.timeline-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.timeline-title { font-size: 15px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; }
 .timeline {
   position: relative; padding-left: 24px;
 }
@@ -185,6 +184,11 @@ tr:hover td { background: rgba(88,166,255,.04); }
   <span id="count-label" style="color:var(--dim);font-size:13px;margin-left:auto"></span>
 </div>
 
+<!-- Main content: table left + timeline right -->
+<div id="main-content" style="display:flex;gap:16px;align-items:flex-start">
+
+<div style="flex:1;min-width:0">
+
 <!-- Memory Table -->
 <div class="table-wrap" id="memory-table-wrap">
   <table>
@@ -209,11 +213,17 @@ tr:hover td { background: rgba(88,166,255,.04); }
   <div id="loading-state" class="loading" style="display:none">Loading…</div>
 </div>
 
-<!-- Session Timeline -->
-<div id="timeline-section" class="timeline-section" style="display:none">
-  <div class="timeline-title">📋 Session Timeline</div>
-  <div class="timeline" id="timeline-container"></div>
 </div>
+
+<!-- Session Timeline (right panel) -->
+<div id="timeline-section" style="display:none;width:380px;flex-shrink:0;position:sticky;top:24px;max-height:calc(100vh-100px);overflow-y:auto">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px">
+    <div class="timeline-title" style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:12px">📋 Session Timeline</div>
+    <div class="timeline" id="timeline-container" style="padding-left:20px"></div>
+  </div>
+</div>
+
+</div> <!-- end main-content -->
 
 <!-- Add/Edit Modal -->
 <div class="modal-overlay" id="modal">
