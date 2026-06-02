@@ -130,7 +130,7 @@ mnemonic_project: "my-project"
 mnemonic_type: "full_conversation"
 provenance:
   source: "reasonix-session"
-  session: "desktop-20260601-1.jsonl"
+  session: "session-20260601-1.jsonl"
 ---
 
 # 会话记录
