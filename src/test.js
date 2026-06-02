@@ -7,11 +7,18 @@
 import { spawn } from 'child_process';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { tmpdir } from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const testDir = join(tmpdir(), 'mnemonic-test-' + Date.now());
 const server = spawn(process.execPath, [join(__dirname, 'index.js')], {
   stdio: ['pipe', 'pipe', 'inherit'],
-  env: { ...process.env, MNEMONIC_NAMESPACE: 'test-agent', MNEMONIC_PROJECT: 'test-project' },
+  env: {
+    ...process.env,
+    MNEMONIC_NAMESPACE: 'test-agent',
+    MNEMONIC_PROJECT: 'test-project',
+    MNEMONIC_DB_DIR: testDir,
+  },
 });
 
 let msgId = 0;

@@ -2,74 +2,59 @@
 
 **MCP memory manager** — 3-layer isolation (global / namespace / project), shared across any MCP-compatible agent.
 
-Memories written by Hermes-Agent are visible to OpenClaw, Claude Code, or any other tool that speaks MCP — without leaking private notes between agents.
+Write memories from Hermes-Agent, query them from OpenClaw, list them from Claude Code — one memory store for all your agents, with built-in privacy between them.
 
 ---
 
-## Tools
+## Features
 
-| Tool | Description |
-|------|-------------|
-| `memory_add` | Add a memory entry. Level auto-detected: project → `project`, namespace → `namespace`, neither → `global` |
-| `memory_search` | FTS5 full-text search with scope filtering |
-| `memory_remove` | Remove by exact `id` or fuzzy `old_text` |
-| `memory_update` | Update content / tags / source by `id` |
-| `memory_list` | Browse memories by scope, sorted by last updated |
-| `memory_stats` | Stats: total, by level, recent 7d, top tag groups |
-
-## Layer model
-
-| Level | Scope | Example |
-|-------|-------|---------|
-| `global` | Every agent, every project | "Always use `const` over `let`" |
-| `namespace` | One agent only | "Hermes — user prefers arrow functions" |
-| `project` | One agent's project | "api-docs — API key lives in .env" |
+- **6 MCP tools** — add, search, remove, update, list, stats
+- **3-layer isolation** — global / namespace / project
+- **Dual transport** — stdio (local) **and** HTTP/SSE (cross-device)
+- **Admin UI** — built-in web interface at `http://localhost:PORT/`
+- **REST API** — HTTP JSON API for non-MCP clients
+- **Zero deps** — uses Node 22+ built-in `node:sqlite`, no native compilation
 
 ## Quick start
 
 ```bash
-# install
+# grab the code
+git clone https://github.com/qoqu/mnemonic.git
+cd mnemonic
 npm install
 
-# start (default namespace=default)
+# start in stdio mode (default, for MCP hosts)
 node src/index.js
 
-# start with a namespace
-MNEMONIC_NAMESPACE=hermes node src/index.js
-
-# start with namespace + project
-MNEMONIC_NAMESPACE=hermes MNEMONIC_PROJECT=myapp node src/index.js
+# or start in HTTP mode with the admin UI
+MNEMONIC_PORT=3456 node src/index.js
+# → open http://localhost:3456/
 ```
 
-## Hermes-Agent
+## Tools
 
-```yaml
-# ~/.hermes/config.yaml
-mcp_servers:
-  mnemonic:
-    command: node /path/to/mnemonic/src/index.js
-    env:
-      MNEMONIC_NAMESPACE: hermes
-      MNEMONIC_PROJECT: ""
+| Tool | What it does |
+|------|-------------|
+| `memory_add` | Add a memory. Level auto-detected: project set → `project`, namespace set → `namespace`, neither → `global` |
+| `memory_search` | LIKE-based full-text search with scope filtering |
+| `memory_remove` | Remove by exact `id` or fuzzy `old_text` |
+| `memory_update` | Update content / tags / source by `id` |
+| `memory_list` | Browse by scope, sorted by last updated |
+| `memory_stats` | Stats: totals by level, 7d activity, tag groups |
 
-# optionally set a default project
-reasonix_memory:
-  project: "my-project"
-```
+## Layer model
 
-## OpenClaw
+| Level | Visible to | Example |
+|-------|-----------|---------|
+| `global` | Every agent, every project | "Use `const` over `let`" |
+| `namespace` | One agent only | "Hermes — user prefers arrow functions" |
+| `project` | One agent's project | "myapp — API key lives in .env" |
 
-```yaml
-# ~/.openclaw/config.yaml
-mcp_servers:
-  mnemonic:
-    command: node /path/to/mnemonic/src/index.js
-    env:
-      MNEMONIC_NAMESPACE: openclaw
-      MNEMONIC_PROJECT: ""
-```
+Level auto-resolves when set to `"auto"` (default): has `project` → `project`, has `namespace` → `namespace`, else `global`.
 
-## Claude Code / any MCP host
+## Configure with MCP hosts
+
+### Claude Code / Reasonix / any stdio-based host
 
 ```json
 {
@@ -85,53 +70,117 @@ mcp_servers:
 }
 ```
 
+### Hermes-Agent
+
+```yaml
+# ~/.hermes/config.yaml
+mcp_servers:
+  mnemonic:
+    command: node /path/to/mnemonic/src/index.js
+    env:
+      MNEMONIC_NAMESPACE: hermes
+```
+
+### OpenClaw
+
+```yaml
+# ~/.openclaw/config.yaml
+mcp_servers:
+  mnemonic:
+    command: node /path/to/mnemonic/src/index.js
+    env:
+      MNEMONIC_NAMESPACE: openclaw
+```
+
 ## Cross-device mode (HTTP/SSE)
 
-Run mnemonic as an HTTP server so multiple devices can share one memory store.
+Run one server on your network, connect from any device.
 
 ```bash
-# Server (device A — NAS, VPS, or any always-on machine)
+# Server (NAS, VPS, or always-on machine)
 MNEMONIC_PORT=3456 node src/index.js
 ```
 
 ```yaml
-# Client (device B — Hermes / OpenClaw / Claude Code)
+# Client config
 mcp_servers:
   mnemonic:
     url: http://192.168.1.100:3456/sse
     transport: streamable-http
 ```
 
-Health check:
+Health check — see if it's alive and how many SSE clients are connected:
 
 ```bash
 curl http://localhost:3456/health
-# → {"status":"ok","namespace":"hermes","transports":0}
+# → {"status":"ok","namespace":"default","transports":2}
 ```
 
-For cross-device setups, point `MNEMONIC_DB_DIR` to a shared filesystem (NAS / SMB / NFS) so all instances read from the same database.
+## Admin UI
+
+Open `http://localhost:3456/` in your browser when running in HTTP mode:
+
+- Browse all memories in a table
+- Search by keyword
+- Filter by level / namespace / project
+- Add, edit, delete entries
+- View stats at a glance
+
+## REST API (for non-MCP clients)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/memories?query=&level=&namespace=&limit=` | Search / list |
+| `POST` | `/api/memories` | Add `{content, level?, tags?, source?}` |
+| `PUT` | `/api/memories/:id` | Update `{content?, tags?, source?}` |
+| `DELETE` | `/api/memories/:id` | Delete by id |
+| `GET` | `/api/stats` | Store statistics |
 
 ## Environment variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MNEMONIC_NAMESPACE` | `default` | Agent namespace. Each agent gets its own `namespace`-level isolation |
-| `MNEMONIC_PROJECT` | `""` | Current project name. Sets `project`-level isolation |
-| `MNEMONIC_DB_DIR` | `./data/` | Directory for the SQLite database file |
+| `MNEMONIC_NAMESPACE` | `default` | Agent namespace for isolation |
+| `MNEMONIC_PROJECT` | `""` | Current project name |
+| `MNEMONIC_DB_DIR` | `./data/` | SQLite database directory |
+| `MNEMONIC_PORT` | (stdio) | Set to run in HTTP/SSE mode |
 
-**Backward compat**: `REASONIX_MEMORY_*` fallbacks are still supported during migration.
+**Backward compat**: `REASONIX_MEMORY_*` fallbacks are supported during migration.
 
 ## Storage
 
 - SQLite, single file: `data/memories.db`
 - Created automatically on first run
-- Full-text search via LIKE (compatible with all Node.js SQLite builds)
-- Database location can be changed via `MNEMONIC_DB_DIR`
+- Full-text search via LIKE (works in all SQLite builds without FTS extensions)
+- WAL mode enabled for concurrent reads
+- Move it to a NAS / sync folder for cross-device setups
+
+## Requirements
+
+- **Node.js 22+** (uses built-in `node:sqlite`, no native compilation needed)
+- npm (for `@modelcontextprotocol/sdk`)
 
 ## Test
 
 ```bash
 node src/test.js
+```
+
+## Project structure
+
+```
+mnemonic/
+├── src/
+│   ├── index.js      # MCP Server + HTTP Server + REST API + Admin UI
+│   ├── admin.html    # Web admin interface (single-file, no deps)
+│   ├── db.js         # SQLite setup and schema
+│   ├── store.js      # CRUD operations with 3-layer isolation
+│   ├── tools.js      # MCP tool definitions and handlers
+│   └── test.js       # End-to-end test
+├── README.md
+├── package.json
+├── LICENSE
+└── .gitignore
 ```
 
 ## License

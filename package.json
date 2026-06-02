@@ -4,9 +4,15 @@
   "description": "MCP memory manager — 3-layer isolation (global/namespace/project), shared across agents",
   "type": "module",
   "main": "src/index.js",
+  "bin": {
+    "mnemonic": "src/index.js"
+  },
   "scripts": {
     "start": "node src/index.js",
     "test": "node src/test.js"
+  },
+  "engines": {
+    "node": ">=22.0.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0"
@@ -14,7 +20,20 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "git+https://github.com/qoqu/mnemonic.git"
   },
-  "keywords": ["mcp", "memory", "mcp-server", "agent", "hermes-agent", "openclaw"]
+  "bugs": {
+    "url": "https://github.com/qoqu/mnemonic/issues"
+  },
+  "homepage": "https://github.com/qoqu/mnemonic#readme",
+  "keywords": [
+    "mcp",
+    "memory",
+    "mcp-server",
+    "agent",
+    "hermes-agent",
+    "openclaw",
+    "claude-code",
+    "reasonix"
+  ]
 }
