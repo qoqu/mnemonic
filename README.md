@@ -155,6 +155,14 @@ Open `http://localhost:3456/` in your browser when running in HTTP mode:
 - WAL mode enabled for concurrent reads
 - Move it to a NAS / sync folder for cross-device setups
 
+> **⚠️ Synced database — run one instance at a time**
+>
+> If you put `memories.db` on a cloud sync folder (OneDrive / iCloud / NAS sync):
+> - Run mnemonic on **one machine at a time** only
+> - Stop the server before switching to another machine
+> - The sync client will propagate the latest data automatically
+> - Reason: SQLite + sync = safe when one writer; risky when two writers race
+
 ## Requirements
 
 - **Node.js 22+** (uses built-in `node:sqlite`, no native compilation needed)
