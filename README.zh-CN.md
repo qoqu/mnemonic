@@ -85,6 +85,32 @@ mcp_servers:
 }
 ```
 
+## 跨设备模式（HTTP/SSE）
+
+将 mnemonic 作为 HTTP 服务运行，多台设备共享同一个记忆库。
+
+```bash
+# 服务端（设备 A — NAS、VPS 或常开机设备）
+MNEMONIC_PORT=3456 node src/index.js
+```
+
+```yaml
+# 客户端（设备 B — Hermes / OpenClaw / Claude Code）
+mcp_servers:
+  mnemonic:
+    url: http://192.168.1.100:3456/sse
+    transport: streamable-http
+```
+
+健康检查：
+
+```bash
+curl http://localhost:3456/health
+# → {"status":"ok","namespace":"hermes","transports":0}
+```
+
+跨设备场景建议将 `MNEMONIC_DB_DIR` 指向网络存储（NAS / SMB / NFS），所有实例读写同一份数据库。
+
 ## 环境变量
 
 | 变量 | 默认值 | 说明 |

@@ -85,6 +85,32 @@ mcp_servers:
 }
 ```
 
+## Cross-device mode (HTTP/SSE)
+
+Run mnemonic as an HTTP server so multiple devices can share one memory store.
+
+```bash
+# Server (device A — NAS, VPS, or any always-on machine)
+MNEMONIC_PORT=3456 node src/index.js
+```
+
+```yaml
+# Client (device B — Hermes / OpenClaw / Claude Code)
+mcp_servers:
+  mnemonic:
+    url: http://192.168.1.100:3456/sse
+    transport: streamable-http
+```
+
+Health check:
+
+```bash
+curl http://localhost:3456/health
+# → {"status":"ok","namespace":"hermes","transports":0}
+```
+
+For cross-device setups, point `MNEMONIC_DB_DIR` to a shared filesystem (NAS / SMB / NFS) so all instances read from the same database.
+
 ## Environment variables
 
 | Variable | Default | Description |
