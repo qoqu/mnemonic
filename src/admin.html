@@ -176,9 +176,12 @@ tr:hover td { background: rgba(88,166,255,.04); }
   <input type="text" id="filter-namespace" placeholder="Filter namespace…" style="width:140px" oninput="loadMemories()">
   <input type="text" id="filter-project" placeholder="Filter project…" style="width:140px" oninput="loadMemories()">
   <label class="btn btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px">
-    <input type="checkbox" id="show-ticks" onchange="loadMemories()" style="accent-color:var(--accent);margin:0">
+    <input type="checkbox" id="show-ticks" onchange="onToggleTimeline()" style="accent-color:var(--accent);margin:0">
     <span>Timeline</span>
   </label>
+  <select id="session-filter" onchange="loadMemories()" style="display:none;min-width:120px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:12px;outline:none">
+    <option value="">All sessions</option>
+  </select>
   <span id="count-label" style="color:var(--dim);font-size:13px;margin-left:auto"></span>
 </div>
 
@@ -300,6 +303,13 @@ function statusIcon(s) {
   return icons[s] || '🔹';
 }
 
+// ── Timeline toggle ────────────────────────────────────────────────
+function onToggleTimeline() {
+  const show = document.getElementById('show-ticks').checked;
+  document.getElementById('session-filter').style.display = show ? '' : 'none';
+  loadMemories();
+}
+
 // ── Stats ───────────────────────────────────────────────────────────
 async function loadStats() {
   const stats = await api('/api/stats');
@@ -329,6 +339,7 @@ async function loadMemories() {
   const ns = document.getElementById('filter-namespace').value;
   const proj = document.getElementById('filter-project').value;
   const showTicks = document.getElementById('show-ticks').checked;
+  const sessionFilter = document.getElementById('session-filter').value;
 
   const params = new URLSearchParams();
   if (query) params.set('query', query);
@@ -364,30 +375,79 @@ async function loadMemories() {
     `).join('');
   }
 
-  // Timeline
+  // Timeline — grouped by namespace/project
   if (showTicks && ticks.length > 0) {
     timelineSec.style.display = 'block';
-    let lastDate = '';
-    document.getElementById('timeline-container').innerHTML = ticks.map(t => {
-      const status = (t.tags || []).find(s => ['exploring','building','fixing','reviewing','idle','done'].includes(s)) || '';
-      const content = t.content.replace(/^\[.*?\]\s*/, '');
-      const dateLabel = fmtDate(t.created);
-      const dateGroup = dateLabel.split(',')[0];
-      let dateHeader = '';
-      if (dateGroup !== lastDate) {
-        lastDate = dateGroup;
-        dateHeader = `<div style="font-size:11px;color:var(--dim);margin:16px 0 4px -16px;font-weight:600">${dateGroup}</div>`;
+
+    // Build session filter options if not yet populated
+    const sessionSelect = document.getElementById('session-filter');
+    if (sessionSelect.options.length <= 1) {
+      const seen = new Set();
+      for (const t of ticks) {
+        const key = t.namespace + (t.project ? ' / ' + t.project : '');
+        if (!seen.has(key)) {
+          seen.add(key);
+          const opt = document.createElement('option');
+          opt.value = key;
+          opt.textContent = key;
+          sessionSelect.appendChild(opt);
+        }
       }
-      return dateHeader + `<div class="tick ${status}">
-        <div class="tick-header">
-          <span class="tick-status">${statusIcon(status)} ${status || 'tick'}</span>
-          <span class="tick-time">${dateLabel}</span>
-          ${t.project ? `<span class="tick-project">${escapeHtml(t.project)}</span>` : ''}
-          <span style="margin-left:auto;font-size:11px;color:var(--dim)">${formatTime(t.created)}</span>
-        </div>
-        <div class="tick-content">${escapeHtml(content)}</div>
-      </div>`;
-    }).join('');
+    }
+
+    // Filter ticks by selected session
+    let filteredTicks = ticks;
+    if (sessionFilter) {
+      const [filterNs, filterProj] = sessionFilter.split(' / ');
+      filteredTicks = ticks.filter(t => t.namespace === filterNs && (!filterProj || t.project === filterProj));
+    }
+
+    // Group filtered ticks by namespace::project
+    const groups = {};
+    for (const t of filteredTicks) {
+      const key = t.namespace + (t.project ? '::' + t.project : '');
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(t);
+    }
+
+    // Sort groups by most recent tick
+    const sortedGroups = Object.entries(groups).sort((a, b) => {
+      const lastA = new Date(a[1][a[1].length-1].created);
+      const lastB = new Date(b[1][b[1].length-1].created);
+      return lastB - lastA;
+    });
+
+    const SESSION_ICONS = { reasonix: '🧠', hermes: '🔮', openclaw: '🦞', default: '💻' };
+
+    let html = '';
+    for (const [key, tickList] of sortedGroups) {
+      const [ns, proj] = key.split('::');
+      const icon = SESSION_ICONS[ns] || '💻';
+      const label = ns + (proj ? ' / ' + proj : '');
+      html += `<div style="font-size:12px;color:var(--text);font-weight:600;margin:16px 0 6px -16px;padding:4px 8px;background:var(--surface);border-radius:6px;display:inline-block">${icon} ${escapeHtml(label)}</div>`;
+
+      let lastDate = '';
+      for (const t of tickList) {
+        const status = (t.tags || []).find(s => ['exploring','building','fixing','reviewing','idle','done'].includes(s)) || '';
+        const content = t.content.replace(/^\[.*?\]\s*/, '');
+        const dateLabel = fmtDate(t.created);
+        const dateGroup = dateLabel.split(',')[0];
+        let dateHeader = '';
+        if (dateGroup !== lastDate) {
+          lastDate = dateGroup;
+          dateHeader = `<div style="font-size:11px;color:var(--dim);margin:12px 0 4px;font-weight:500">${dateGroup}</div>`;
+        }
+        html += dateHeader + `<div class="tick ${status}">
+          <div class="tick-header">
+            <span class="tick-status">${statusIcon(status)} ${status || 'tick'}</span>
+            <span class="tick-time">${dateLabel}</span>
+            <span style="margin-left:auto;font-size:11px;color:var(--dim)">${formatTime(t.created)}</span>
+          </div>
+          <div class="tick-content">${escapeHtml(content)}</div>
+        </div>`;
+      }
+    }
+    document.getElementById('timeline-container').innerHTML = html;
   }
 
   document.getElementById('count-label').textContent =
