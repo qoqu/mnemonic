@@ -137,6 +137,10 @@ tr:hover td { background: rgba(88,166,255,.04); }
   </select>
   <input type="text" id="filter-namespace" placeholder="Filter namespace…" style="width:140px" oninput="loadMemories()">
   <input type="text" id="filter-project" placeholder="Filter project…" style="width:140px" oninput="loadMemories()">
+  <label style="color:var(--dim);font-size:13px;cursor:pointer;white-space:nowrap">
+    <input type="checkbox" id="show-ticks" onchange="loadMemories()" style="accent-color:var(--accent);vertical-align:middle">
+    <span style="vertical-align:middle">Show ticks</span>
+  </label>
   <span id="count-label" style="color:var(--dim);font-size:13px;margin-left:auto"></span>
 </div>
 
@@ -287,10 +291,19 @@ async function loadMemories() {
     return;
   }
 
-  tbody.innerHTML = memories.map((m, i) => `
-    <tr>
+  const showTicks = document.getElementById('show-ticks').checked;
+  const filtered = showTicks ? memories : memories.filter(m => !m.tags || !m.tags.includes('session-log'));
+  document.getElementById('count-label').textContent = filtered.length + ' entries' + (showTicks ? '' : ' (+' + (memories.length - filtered.length) + ' ticks)');
+
+  if (!filtered || filtered.length === 0) {
+    empty.style.display = 'block';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map((m, i) => `
+    <tr${m.tags && m.tags.includes('session-log') ? ' style="opacity:.5"' : ''}>
       <td style="color:var(--dim);font-size:11px">${i+1}</td>
-      <td class="col-content">${escapeHtml(m.content)}</td>
+      <td class="col-content">${m.tags && m.tags.includes('session-log') ? '🔹 ' : ''}${escapeHtml(m.content)}</td>
       <td>${badge(m.level)}</td>
       <td style="font-size:12px;color:var(--dim)">${escapeHtml(m.namespace)}</td>
       <td style="font-size:12px;color:var(--dim)">${escapeHtml(m.project) || '—'}</td>
