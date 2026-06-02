@@ -42,6 +42,30 @@ MNEMONIC_PORT=3456 node src/index.js
 | `memory_stats` | 统计：各层级数量、7 天活跃度、标签分组 |
 | `memory_log_tick` | 轻量会话日志——自动记录当前工作状态，不污染记忆库 |
 
+## 自动会话日志（Tick）
+
+`memory_log_tick` 工具让 Agent 自动记录当前工作状态，生成一个按时间轴排列的活动记录，在管理界面中勾选 "Timeline" 即可看到。
+
+**建议配置：** 让你的 Agent 每 10-15 轮对话调一次 `memory_log_tick`：
+
+```
+每 10-15 轮调一次 memory_log_tick，参数：
+  context: 当前在做什么（1-2 句话）
+  status: "exploring" / "building" / "fixing" / "reviewing" / "idle" / "done"
+  project: 项目名（可选）
+```
+
+Tick 存在 namespace 级，自动打 `session-log` 标签，跟正式记忆互不干扰。
+
+```bash
+# 直接调 REST API
+curl -X POST http://localhost:3456/api/log \
+  -H "Content-Type: application/json" \
+  -d '{"context":"重构记忆存储 API","status":"building","project":"mnemonic"}'
+```
+
+查看某个会话的时间线：`memory_search(tags=["session-log"], project="mnemonic")`
+
 ## 三层隔离
 
 | 层级 | 谁可见 | 场景 |

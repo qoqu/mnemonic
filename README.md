@@ -43,6 +43,30 @@ MNEMONIC_PORT=3456 node src/index.js
 | `memory_stats` | Stats: totals by level, 7d activity, tag groups |
 | `memory_log_tick` | Lightweight session tick — log what you're doing without polluting the store |
 
+## Auto-tracking with session ticks
+
+The `memory_log_tick` tool lets your agent log what it's working on periodically — building a searchable session timeline visible in the admin UI.
+
+**Recommended usage:** Configure your agent to call `memory_log_tick` every 10-20 turns:
+
+```
+Every 10-15 turns, call memory_log_tick with:
+  context: brief summary of what you're doing (1-2 sentences)
+  status: one of "exploring" / "building" / "fixing" / "reviewing" / "idle" / "done"
+  project: current project name (optional)
+```
+
+Ticks are stored at `namespace` level and auto-tagged `session-log`, keeping them separate from permanent memories.
+
+```bash
+# Via REST API (for non-MCP agents or scripts)
+curl -X POST http://localhost:3456/api/log \
+  -H "Content-Type: application/json" \
+  -d '{"context":"Refactoring the memory store API","status":"building","project":"mnemonic"}'
+```
+
+To replay a session's timeline: `memory_search(tags=["session-log"], project="mnemonic")`.
+
 ## Layer model
 
 | Level | Visible to | Example |
