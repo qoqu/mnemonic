@@ -1,0 +1,20 @@
+{
+  "name": "mnemonic",
+  "version": "1.0.0",
+  "description": "MCP memory manager — 3-layer isolation (global/namespace/project), shared across agents",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node src/test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "keywords": ["mcp", "memory", "mcp-server", "agent", "hermes-agent", "openclaw"]
+}
