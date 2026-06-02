@@ -138,6 +138,24 @@ function handleApi(req, res, url) {
     return;
   }
 
+  // POST /api/log — session tick (lightweight, namespace-level, auto-tagged "session-log")
+  if (method === 'POST' && pathname === '/api/log') {
+    readBody(req).then(body => {
+      const tags = ['session-log', body.status || 'idle'];
+      const content = `[${body.status || 'idle'}] ${body.context}`;
+      const result = store.add({
+        content,
+        level: 'namespace',
+        namespace: sessionContext.namespace,
+        project: body.project || sessionContext.project || '',
+        tags,
+        source: 'tick',
+      });
+      json(res, { id: result.id, logged: true }, 201);
+    }).catch(err => json(res, { error: err.message }, 400));
+    return;
+  }
+
   // PUT /api/memories/:id — update (supports content, tags, source, level, project)
   const putMatch = pathname.match(/^\/api\/memories\/(.+)$/);
   if (method === 'PUT' && putMatch) {

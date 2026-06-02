@@ -8,7 +8,7 @@ Write memories from Hermes-Agent, query them from OpenClaw, list them from Claud
 
 ## Features
 
-- **6 MCP tools** — add, search, remove, update, list, stats
+- **7 MCP tools** — add, search, remove, update, list, stats, log
 - **3-layer isolation** — global / namespace / project
 - **Dual transport** — stdio (local) **and** HTTP/SSE (cross-device)
 - **Admin UI** — built-in web interface at `http://localhost:PORT/`
@@ -41,6 +41,7 @@ MNEMONIC_PORT=3456 node src/index.js
 | `memory_update` | Update content / tags / source by `id` |
 | `memory_list` | Browse by scope, sorted by last updated |
 | `memory_stats` | Stats: totals by level, 7d activity, tag groups |
+| `memory_log_tick` | Lightweight session tick — log what you're doing without polluting the store |
 
 ## Layer model
 
@@ -132,7 +133,8 @@ Open `http://localhost:3456/` in your browser when running in HTTP mode:
 |--------|----------|-------------|
 | `GET` | `/api/memories?query=&level=&namespace=&limit=` | Search / list |
 | `POST` | `/api/memories` | Add `{content, level?, tags?, source?}` |
-| `PUT` | `/api/memories/:id` | Update `{content?, tags?, source?}` |
+| `POST` | `/api/log` | Session tick `{context, status?, project?}` — namespace-level, auto-tagged |
+| `PUT` | `/api/memories/:id` | Update `{content?, tags?, source?, level?, project?}` |
 | `DELETE` | `/api/memories/:id` | Delete by id |
 | `GET` | `/api/stats` | Store statistics |
 

@@ -8,7 +8,7 @@ Hermes 写的记忆，OpenClaw 能搜到，Claude Code 也能读到——但各�
 
 ## 特性
 
-- **6 个 MCP 工具** — 增删改查统统计
+- **7 个 MCP 工具** — 增删改查统统计 + 自动会话日志
 - **三层隔离** — global / namespace / project
 - **双传输模式** — stdio（本地）+ HTTP/SSE（跨设备）
 - **管理界面** — 浏览器打开 `http://localhost:PORT/`
@@ -40,6 +40,7 @@ MNEMONIC_PORT=3456 node src/index.js
 | `memory_update` | 按 ID 更新内容/标签/来源 |
 | `memory_list` | 按作用域浏览，按最近更新排序 |
 | `memory_stats` | 统计：各层级数量、7 天活跃度、标签分组 |
+| `memory_log_tick` | 轻量会话日志——自动记录当前工作状态，不污染记忆库 |
 
 ## 三层隔离
 
@@ -131,7 +132,8 @@ HTTP 模式下打开 `http://localhost:3456/`：
 |------|------|------|
 | `GET` | `/api/memories?query=&level=&namespace=&limit=` | 搜索/列表 |
 | `POST` | `/api/memories` | 添加 `{content, level?, tags?, source?}` |
-| `PUT` | `/api/memories/:id` | 更新 `{content?, tags?, source?}` |
+| `POST` | `/api/log` | 会话日志 `{context, status?, project?}` — namespace 级，自动标签 |
+| `PUT` | `/api/memories/:id` | 更新 `{content?, tags?, source?, level?, project?}` |
 | `DELETE` | `/api/memories/:id` | 删除 |
 | `GET` | `/api/stats` | 统计 |
 

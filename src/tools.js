@@ -115,6 +115,34 @@ Without query, returns most recently updated entries.`,
       },
     },
   },
+  {
+    name: 'memory_log_tick',
+    description: `Lightweight session tick. Log what you're working on without polluting the memory store.
+
+Use this every 10-20 turns to leave a breadcrumb of session activity.
+Entries are auto-tagged "session-log" and stored at namespace level (invisible to other agents).
+
+Unlike memory_add (for permanent knowledge), this is for lightweight context tracking.
+Search via: memory_search(tags=["session-log"]) to replay your session timeline.
+
+Parameters:
+  - context: what you're doing right now (required, 1-2 sentences)
+  - status: current phase — "exploring" / "building" / "fixing" / "reviewing" / "idle" / "done"
+  - project: project you're working on (optional)`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        context: { type: 'string', description: 'What you are doing right now (1-2 sentences)' },
+        status: {
+          type: 'string',
+          enum: ['exploring', 'building', 'fixing', 'reviewing', 'idle', 'done'],
+          description: 'Current work phase',
+        },
+        project: { type: 'string', description: 'Project you are working on (optional)' },
+      },
+      required: ['context'],
+    },
+  },
 ];
 
 // ── 工具处理函数 ─────────────────────────────────────────────────────
@@ -176,6 +204,21 @@ export function createHandlers(getSessionContext) {
       const ctx = getSessionContext();
       const result = store.stats({ namespace: args.namespace || ctx.namespace });
       return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+
+    memory_log_tick: (args) => {
+      const ctx = getSessionContext();
+      const tags = ['session-log', args.status || 'idle'];
+      const content = `[${args.status || 'idle'}] ${args.context}`;
+      const result = store.add({
+        content,
+        level: 'namespace',
+        namespace: ctx.namespace || 'default',
+        project: args.project || ctx.project || '',
+        tags,
+        source: 'tick',
+      });
+      return { content: [{ type: 'text', text: JSON.stringify({ id: result.id, logged: true }) }] };
     },
   };
 }
