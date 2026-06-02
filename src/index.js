@@ -24,6 +24,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { getDb, close } from './db.js';
 import { TOOLS, createHandlers } from './tools.js';
+import { exportToKb } from './export.js';
 import * as store from './store.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -175,6 +176,25 @@ function handleApi(req, res, url) {
   if (method === 'DELETE' && delMatch) {
     const result = store.remove({ id: delMatch[1] });
     json(res, result);
+    return;
+  }
+
+  // GET /api/export?project=&since=&tags=&dry_run= — export to knowledge base
+  if (method === 'GET' && pathname === '/api/export') {
+    const result = exportToKb({
+      project: searchParams.get('project') || sessionContext.project,
+      since: searchParams.get('since') || undefined,
+      tags: searchParams.get('tags') ? searchParams.get('tags').split(',') : undefined,
+      dryRun: searchParams.get('dry_run') === 'true',
+      namespace: sessionContext.namespace,
+    });
+    // exportToKb returns MCP format, extract the JSON text
+    try {
+      const text = result.content[0].text;
+      json(res, JSON.parse(text));
+    } catch {
+      json(res, result);
+    }
     return;
   }
 

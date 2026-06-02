@@ -7,6 +7,7 @@
  */
 
 import * as store from './store.js';
+import { exportToKb } from './export.js';
 
 // ── 工具元数据 ────────────────────────────────────────────────────────
 
@@ -116,6 +117,32 @@ Without query, returns most recently updated entries.`,
     },
   },
   {
+    name: 'export_to_kb',
+    description: `Export memories to knowledge base inbox.
+
+Queries memories by project/time/tags, maps each to the correct KB directory
+(via kb-mapping.json), generates markdown files with frontmatter, and writes
+them to the inbox folder for later review and ingestion.
+
+Mapping rules:
+  - Project name → kb-mapping.json determines target (memory/neurons/raw)
+  - Tag overrides can override target for specific tags (e.g. "借鉴" → neurons)
+  - Unmapped projects default to "memory"
+
+The inbox path is configured via MNEMONIC_KB_PATH env var.
+`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Project name to export (required)' },
+        since: { type: 'string', description: 'Only export memories after this date (ISO, e.g. 2026-01-01)' },
+        tags: { type: 'array', items: { type: 'string' }, description: 'Only export memories with these tags' },
+        dry_run: { type: 'boolean', description: 'Preview what would be exported without writing files' },
+      },
+      required: ['project'],
+    },
+  },
+  {
     name: 'memory_log_tick',
     description: `Lightweight session tick. Log what you're working on without polluting the memory store.
 
@@ -204,6 +231,17 @@ export function createHandlers(getSessionContext) {
       const ctx = getSessionContext();
       const result = store.stats({ namespace: args.namespace || ctx.namespace });
       return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+
+    export_to_kb: (args) => {
+      const ctx = getSessionContext();
+      return exportToKb({
+        project: args.project,
+        since: args.since,
+        tags: args.tags,
+        dryRun: args.dry_run,
+        namespace: ctx.namespace,
+      });
     },
 
     memory_log_tick: (args) => {
