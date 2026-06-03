@@ -173,3 +173,42 @@ export function stats({ namespace } = {}) {
     top_tag_groups: topTags.map(r => ({ group: r.tags, count: r.c })),
   };
 }
+
+// ── 全量对话存储（设备迁移） ─────────────────────────────────────────
+
+export function convSave({ session_id, namespace, project, content, turn_count, summary }) {
+  const db = getDb();
+  const id = `conv_${randomUUID().slice(0, 8)}`;
+  const ts = now();
+
+  db.prepare(`
+    INSERT OR REPLACE INTO conversations (id, session_id, namespace, project, content, turn_count, summary, created, updated)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, session_id, namespace || '', project || '', content, turn_count || 0, summary || '', ts, ts);
+
+  return { id, session_id };
+}
+
+export function convList({ namespace, project, limit = 50 }) {
+  const db = getDb();
+  const conditions = [];
+  const params = [];
+
+  if (namespace) { conditions.push('namespace = ?'); params.push(namespace); }
+  if (project) { conditions.push('project = ?'); params.push(project); }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const rows = db.prepare(`SELECT id, session_id, namespace, project, turn_count, summary, created, updated FROM conversations ${where} ORDER BY updated DESC LIMIT ?`).all(...params, limit);
+  return rows;
+}
+
+export function convGet(session_id) {
+  const db = getDb();
+  return db.prepare('SELECT * FROM conversations WHERE session_id = ?').get(session_id) || null;
+}
+
+export function convDelete(session_id) {
+  const db = getDb();
+  const result = db.prepare('DELETE FROM conversations WHERE session_id = ?').run(session_id);
+  return { deleted: Number(result.changes) > 0 };
+}

@@ -8,7 +8,7 @@ Write memories from Hermes-Agent, query them from OpenClaw, list them from Claud
 
 ## Features
 
-- **7 MCP tools** — add, search, remove, update, list, stats, log
+- **11 MCP tools** — add, search, remove, update, list, stats, log, conversation_save/list/get/remove
 - **3-layer isolation** — global / namespace / project
 - **Dual transport** — stdio (local) **and** HTTP/SSE (cross-device)
 - **Admin UI** — built-in web interface at `http://localhost:PORT/`
@@ -42,6 +42,29 @@ MNEMONIC_PORT=3456 node src/index.js
 | `memory_list` | Browse by scope, sorted by last updated |
 | `memory_stats` | Stats: totals by level, 7d activity, tag groups |
 | `memory_log_tick` | Lightweight session tick — log what you're doing without polluting the store |
+| `conversation_save` | Save full conversation for device migration (not shown in UI) |
+| `conversation_list` | List saved conversations (metadata only) |
+| `conversation_get` | Retrieve a full conversation by session_id |
+| `conversation_remove` | Remove a stored conversation |
+
+## Device migration
+
+Save full conversations to the database so they can be restored on another device.
+
+```bash
+# On the old device: save conversation at session end
+curl -X POST http://localhost:3456/api/conversations \
+  -H "Content-Type: application/json" \
+  -d '{"session_id":"my-session-001","project":"myapp","content":"full conversation text...","turn_count":42,"summary":"Refactored the memory store"}'
+
+# On the new device: list available conversations
+curl "http://localhost:3456/api/conversations?namespace=reasonix"
+
+# Retrieve a specific conversation
+curl "http://localhost:3456/api/conversations/my-session-001"
+```
+
+Data is stored in the same SQLite database (`conversations` table) and syncs automatically if the db is on a shared drive. Not shown in the admin UI.
 
 ## Auto-tracking with session ticks
 
@@ -161,6 +184,10 @@ Open `http://localhost:3456/` in your browser when running in HTTP mode:
 | `PUT` | `/api/memories/:id` | Update `{content?, tags?, source?, level?, project?}` |
 | `DELETE` | `/api/memories/:id` | Delete by id |
 | `GET` | `/api/stats` | Store statistics |
+| `GET` | `/api/conversations?namespace=&project=` | List saved conversations (device migration) |
+| `POST` | `/api/conversations` | Save conversation `{session_id, content, project?}` |
+| `GET` | `/api/conversations/:session_id` | Get full conversation content |
+| `DELETE` | `/api/conversations/:session_id` | Remove saved conversation |
 
 ## Environment variables
 

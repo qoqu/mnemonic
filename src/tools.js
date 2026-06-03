@@ -143,6 +143,53 @@ Parameters:
       required: ['context'],
     },
   },
+  {
+    name: 'conversation_save',
+    description: `Save a full conversation session for device migration.
+
+Stores the entire conversation content in the database so it can be
+retrieved on another device. Not shown in the admin UI.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        session_id: { type: 'string', description: 'Unique session identifier' },
+        namespace: { type: 'string', description: 'Agent namespace (MCP Host auto-fills)' },
+        project: { type: 'string', description: 'Current project name' },
+        content: { type: 'string', description: 'Full conversation content' },
+        turn_count: { type: 'number', description: 'Number of conversation turns' },
+        summary: { type: 'string', description: 'Brief session summary' },
+      },
+      required: ['session_id', 'content'],
+    },
+  },
+  {
+    name: 'conversation_list',
+    description: 'List saved full conversations for device migration. Returns metadata without full content.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        namespace: { type: 'string' }, project: { type: 'string' }, limit: { type: 'number' },
+      },
+    },
+  },
+  {
+    name: 'conversation_get',
+    description: 'Retrieve a full conversation by session_id. For context restoration on a new device.',
+    inputSchema: {
+      type: 'object',
+      properties: { session_id: { type: 'string' } },
+      required: ['session_id'],
+    },
+  },
+  {
+    name: 'conversation_remove',
+    description: 'Remove a stored full conversation by session_id.',
+    inputSchema: {
+      type: 'object',
+      properties: { session_id: { type: 'string' } },
+      required: ['session_id'],
+    },
+  },
 ];
 
 // ── 工具处理函数 ─────────────────────────────────────────────────────
@@ -219,6 +266,43 @@ export function createHandlers(getSessionContext) {
         source: 'tick',
       });
       return { content: [{ type: 'text', text: JSON.stringify({ id: result.id, logged: true }) }] };
+    },
+
+    // ── 设备迁移 ──────────────────────────────────────────────────
+    conversation_save: (args) => {
+      const ctx = getSessionContext();
+      const result = store.convSave({
+        session_id: args.session_id,
+        namespace: args.namespace || ctx.namespace || 'default',
+        project: args.project || ctx.project || '',
+        content: args.content,
+        turn_count: args.turn_count || 0,
+        summary: args.summary || '',
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+
+    conversation_list: (args) => {
+      const ctx = getSessionContext();
+      const result = store.convList({
+        namespace: args.namespace || ctx.namespace,
+        project: args.project || ctx.project,
+        limit: args.limit || 50,
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+
+    conversation_get: (args) => {
+      const result = store.convGet(args.session_id);
+      if (!result) {
+        return { content: [{ type: 'text', text: JSON.stringify({ error: 'Conversation not found' }) }], isError: true };
+      }
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+
+    conversation_remove: (args) => {
+      const result = store.convDelete(args.session_id);
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
     },
   };
 }

@@ -178,6 +178,47 @@ function handleApi(req, res, url) {
     return;
   }
 
+  // ── 设备迁移：全量对话 REST API ─────────────────────────────────
+  // GET /api/conversations?namespace=&project=&limit= — list
+  if (method === 'GET' && pathname === '/api/conversations') {
+    const result = store.convList({
+      namespace: searchParams.get('namespace') || sessionContext.namespace,
+      project: searchParams.get('project') || undefined,
+      limit: parseInt(searchParams.get('limit') || '50', 10),
+    });
+    return json(res, result);
+  }
+
+  // POST /api/conversations — save
+  if (method === 'POST' && pathname === '/api/conversations') {
+    readBody(req).then(body => {
+      const result = store.convSave({
+        session_id: body.session_id,
+        namespace: body.namespace || sessionContext.namespace,
+        project: body.project || sessionContext.project || '',
+        content: body.content,
+        turn_count: body.turn_count || 0,
+        summary: body.summary || '',
+      });
+      json(res, result, 201);
+    }).catch(err => json(res, { error: err.message }, 400));
+    return;
+  }
+
+  // GET /api/conversations/:session_id — get full content
+  const convGetMatch = pathname.match(/^\/api\/conversations\/(.+)$/);
+  if (method === 'GET' && convGetMatch) {
+    const result = store.convGet(convGetMatch[1]);
+    if (!result) { return json(res, { error: 'Not found' }, 404); }
+    return json(res, result);
+  }
+
+  // DELETE /api/conversations/:session_id — remove
+  if (method === 'DELETE' && convGetMatch) {
+    const result = store.convDelete(convGetMatch[1]);
+    return json(res, result);
+  }
+
   json(res, { error: 'Not found' }, 404);
 }
 
