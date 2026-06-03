@@ -9,6 +9,14 @@
 import * as store from './store.js';
 import { exportToKb } from './export.js';
 
+// ── 设备迁移工具 ─────────────────────────────────────────────────────
+// conversation_* 工具存/取全量对话数据，用于换设备时恢复上下文。
+// 数据不展示在管理界面，平时不使用——仅设备迁移时用。<｜end▁of▁thinking｜>
+
+<｜｜DSML｜｜tool_calls>
+<｜｜DSML｜｜invoke name="read_file">
+<｜｜DSML｜｜parameter name="path" string="true">/mnemonic/src/tools.js
+
 // ── 工具元数据 ────────────────────────────────────────────────────────
 
 export const TOOLS = [
@@ -118,28 +126,92 @@ Without query, returns most recently updated entries.`,
   },
   {
     name: 'export_to_kb',
-    description: `Export memories to knowledge base inbox.
+    description: `Export memories / full conversations to knowledge base inbox.
 
-Queries memories by project/time/tags, maps each to the correct KB directory
-(via kb-mapping.json), generates markdown files with frontmatter, and writes
-them to the inbox folder for later review and ingestion.
+Two export modes via the 'type' param:
+  "summary" (default) — export memory summaries to KB (uses kb-mapping.json)
+  "full"             — export full conversation transcripts from session files
+  "both"             — export both summaries + full conversations
 
-Mapping rules:
+Full conversation export reads the original Reasonix session files (.jsonl),
+formats them as readable markdown with user/AI/tool calls, and writes them
+to 📥/原始资料/ for later KB ingestion via sort.js.
+
+Mapping rules (summary mode):
   - Project name → kb-mapping.json determines target (memory/neurons/raw)
-  - Tag overrides can override target for specific tags (e.g. "借鉴" → neurons)
+  - Tag overrides can override target for specific tags
   - Unmapped projects default to "memory"
 
-The inbox path is configured via MNEMONIC_KB_PATH env var.
+Config:
+  MNEMONIC_KB_PATH      — Obsidian Vault root (required)
+  MNEMONIC_SESSIONS_DIR — session files directory (default: ~/.reasonix/sessions)
 `,
     inputSchema: {
       type: 'object',
       properties: {
         project: { type: 'string', description: 'Project name to export (required)' },
-        since: { type: 'string', description: 'Only export memories after this date (ISO, e.g. 2026-01-01)' },
+        since: { type: 'string', description: 'Only export after this date (ISO, e.g. 2026-01-01)' },
         tags: { type: 'array', items: { type: 'string' }, description: 'Only export memories with these tags' },
-        dry_run: { type: 'boolean', description: 'Preview what would be exported without writing files' },
+        type: { type: 'string', enum: ['summary', 'full', 'both'], description: 'Export type. Default summary' },
+        dry_run: { type: 'boolean', description: 'Preview without writing files' },
       },
       required: ['project'],
+    },
+  },
+  {
+    name: 'conversation_save',
+    description: `Save a full conversation session for device migration.
+
+Stores the entire conversation content in the database so it can be
+retrieved on another device. Not shown in the admin UI.
+
+Use this at session end or periodically during long sessions.
+Call conversation_list to find sessions, then conversation_get to retrieve.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        session_id: { type: 'string', description: 'Unique session identifier (e.g., the session file name)' },
+        namespace: { type: 'string', description: 'Agent namespace (MCP Host auto-fills)' },
+        project: { type: 'string', description: 'Current project name' },
+        content: { type: 'string', description: 'Full conversation content (JSONL or markdown format)' },
+        turn_count: { type: 'number', description: 'Number of conversation turns' },
+        summary: { type: 'string', description: 'Brief summary of this session (1-2 sentences)' },
+      },
+      required: ['session_id', 'content'],
+    },
+  },
+  {
+    name: 'conversation_list',
+    description: 'List saved full conversations for device migration. Returns metadata (id, session, project, turns, date) without the full content.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        namespace: { type: 'string', description: 'Filter by agent namespace' },
+        project: { type: 'string', description: 'Filter by project name' },
+        limit: { type: 'number', description: 'Max results (default 50)' },
+      },
+    },
+  },
+  {
+    name: 'conversation_get',
+    description: 'Retrieve a full conversation by session_id. Returns the complete content for context restoration on a new device.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        session_id: { type: 'string', description: 'Session identifier (from conversation_list)' },
+      },
+      required: ['session_id'],
+    },
+  },
+  {
+    name: 'conversation_remove',
+    description: 'Remove a stored full conversation by session_id.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        session_id: { type: 'string', description: 'Session identifier to remove' },
+      },
+      required: ['session_id'],
     },
   },
   {
@@ -239,6 +311,7 @@ export function createHandlers(getSessionContext) {
         project: args.project,
         since: args.since,
         tags: args.tags,
+        type: args.type || 'summary',
         dryRun: args.dry_run,
         namespace: ctx.namespace,
       });
@@ -257,6 +330,43 @@ export function createHandlers(getSessionContext) {
         source: 'tick',
       });
       return { content: [{ type: 'text', text: JSON.stringify({ id: result.id, logged: true }) }] };
+    },
+
+    // ── 设备迁移 ──────────────────────────────────────────────────
+    conversation_save: (args) => {
+      const ctx = getSessionContext();
+      const result = store.convSave({
+        session_id: args.session_id,
+        namespace: args.namespace || ctx.namespace || 'default',
+        project: args.project || ctx.project || '',
+        content: args.content,
+        turn_count: args.turn_count || 0,
+        summary: args.summary || '',
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+
+    conversation_list: (args) => {
+      const ctx = getSessionContext();
+      const result = store.convList({
+        namespace: args.namespace || ctx.namespace,
+        project: args.project || ctx.project,
+        limit: args.limit || 50,
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+
+    conversation_get: (args) => {
+      const result = store.convGet(args.session_id);
+      if (!result) {
+        return { content: [{ type: 'text', text: JSON.stringify({ error: 'Conversation not found' }) }], isError: true };
+      }
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+
+    conversation_remove: (args) => {
+      const result = store.convDelete(args.session_id);
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
     },
   };
 }
