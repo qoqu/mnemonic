@@ -25,6 +25,7 @@ import { fileURLToPath } from 'url';
 import { getDb, close } from './db.js';
 import { TOOLS, createHandlers } from './tools.js';
 import * as store from './store.js';
+import { installStderrBuffer, emitDiagnostic, emitBlockingError } from './io-discipline.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -298,17 +299,32 @@ function startHttpMode() {
 // ── Stdio mode ────────────────────────────────────────────────────────
 
 async function startStdioMode() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  process.stderr.write(`[mnemonic] stdio mode | ns=${sessionContext.namespace} proj=${sessionContext.project || '-'}\n`);
+  const buf = installStderrBuffer();
+  try {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    emitDiagnostic(`[mnemonic] stdio mode | ns=${sessionContext.namespace} proj=${sessionContext.project || '-'}`);
+  } catch (err) {
+    // 失败时冲刷缓冲，让诊断信息可见
+    if (buf) buf.flush();
+    emitBlockingError(`[mnemonic] fatal: ${err.message}`);
+    close();
+    process.exit(1);
+  }
+  // 成功时丢弃缓冲——不污染 MCP JSON-RPC 协议流
+  if (buf) buf.drop();
 }
 
 // ── Main ──────────────────────────────────────────────────────────────
 
 function main() {
   getDb();
-  if (PORT > 0) { startHttpMode(); }
-  else { startStdioMode().catch(err => { process.stderr.write(`[mnemonic] fatal: ${err.message}\n`); close(); process.exit(1); }); }
+  if (PORT > 0) {
+    // HTTP 模式不需要 stderr 缓冲
+    startHttpMode();
+  } else {
+    startStdioMode();
+  }
 }
 
 main();
