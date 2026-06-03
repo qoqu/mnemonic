@@ -214,3 +214,23 @@ export function convDelete(session_id) {
   const result = db.prepare('DELETE FROM conversations WHERE session_id = ?').run(session_id);
   return { deleted: Number(result.changes) > 0 };
 }
+
+// ── 导出日志（防重复） ───────────────────────────────────────────────
+
+export function markExported(memoryId, project, exportType) {
+  const db = getDb();
+  db.prepare('INSERT OR IGNORE INTO export_log (memory_id, project, export_type, exported_at) VALUES (?, ?, ?, ?)')
+    .run(memoryId, project || '', exportType || 'summary', now());
+}
+
+export function isExported(memoryId, project, exportType) {
+  const db = getDb();
+  const row = db.prepare('SELECT 1 FROM export_log WHERE memory_id = ? AND project = ? AND export_type = ?').get(memoryId, project || '', exportType || 'summary');
+  return !!row;
+}
+
+export function getLastExportTime(project, exportType) {
+  const db = getDb();
+  const row = db.prepare("SELECT MAX(exported_at) as t FROM export_log WHERE project = ? AND export_type = ?").get(project || '', exportType || 'summary');
+  return row ? row.t : null;
+}

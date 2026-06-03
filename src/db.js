@@ -39,6 +39,18 @@ function initSchema(db) {
   try { db.exec('DROP TRIGGER IF EXISTS memories_au'); } catch {}
   try { db.exec('DROP TABLE IF EXISTS memories_fts'); } catch {}
 
+  // 导出日志（防止重复导入知识库）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS export_log (
+      memory_id TEXT NOT NULL,
+      project TEXT NOT NULL DEFAULT '',
+      export_type TEXT NOT NULL DEFAULT 'summary',
+      exported_at TEXT NOT NULL,
+      PRIMARY KEY (memory_id, project, export_type)
+    );
+    CREATE INDEX IF NOT EXISTS idx_export_log_project ON export_log(project, export_type);
+  `);
+
   // 全量对话存储（设备迁移用，不在 UI 展示）
   db.exec(`
     CREATE TABLE IF NOT EXISTS conversations (
