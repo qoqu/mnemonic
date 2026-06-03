@@ -204,9 +204,11 @@ export function exportToKb({ project, since, tags, dryRun, namespace, type }) {
     if (!existsSync(inboxDir)) mkdirSync(inboxDir, { recursive: true });
 
     for (const mem of filtered) {
+      if (store.isExported(mem.id, project, 'summary')) continue;
       const fm = buildFrontmatter(mem);
       const slug = (mem.content || '').replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, '_').substring(0, 40);
       writeFileSync(join(inboxDir, `mnemonic_${mem.project || 'unknown'}_${slug}.md`), fm, 'utf8');
+      store.markExported(mem.id, project, 'summary');
       results.summary++;
     }
   }
@@ -219,6 +221,7 @@ export function exportToKb({ project, since, tags, dryRun, namespace, type }) {
 
     const sessionIds = extractSessionIds(filtered);
     for (const sid of sessionIds) {
+      if (store.isExported(sid, project, 'full')) continue;
       const entries = readSessionFile(sid);
       if (!entries) continue;
 
@@ -227,6 +230,7 @@ export function exportToKb({ project, since, tags, dryRun, namespace, type }) {
       const fm = buildConversationFrontmatter(sid, project, tags, targetType);
       const body = formatConversation(entries);
       writeFileSync(join(inboxDir, `会话_${project}_${slug}.md`), fm + '\n' + body, 'utf8');
+      store.markExported(sid, project, 'full');
       results.full++;
     }
   }
