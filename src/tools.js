@@ -48,22 +48,43 @@ Usage tips (model instructions):
   },
   {
     name: 'memory_search',
-    description: `Search memories via FTS5 full-text search with 3-layer isolation filtering.
+    description: `Progressive search. Three layers:
 
-Defaults to searching all levels. Use levels=["project"] to scope to current project.
-Without query, returns most recently updated entries.`,
+  Layer 1 — search(query, mode="index"):    return compact index (id + ~80 chars). ~50 tokens/item.
+  Layer 2 — memory_preview(ids):            return selected items with full content.
+  Layer 3 — memory_get(id):                 return a single item with full content.
+
+Default mode is "index" — use mode="full" for the traditional verbose output.`,
     inputSchema: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: '搜索关键词（FTS5）。不传则按最近更新排序' },
-        levels: {
-          type: 'array', items: { type: 'string', enum: ['global', 'namespace', 'project'] },
-          description: '搜索范围，不传则搜所有层级',
-        },
+        query: { type: 'string', description: '搜索关键词' },
+        mode: { type: 'string', enum: ['index', 'full'], description: 'index=紧凑(默认) full=完整' },
+        levels: { type: 'array', items: { type: 'string', enum: ['global', 'namespace', 'project'] } },
         namespace: { type: 'string', description: '按 agent 过滤' },
         project: { type: 'string', description: '按项目过滤' },
         limit: { type: 'number', description: '返回上限，默认 20' },
       },
+    },
+  },
+  {
+    name: 'memory_preview',
+    description: 'Layer 2 of progressive search. Get selected memories by IDs with full content.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ids: { type: 'array', items: { type: 'string' }, description: 'Memory IDs to preview' },
+      },
+      required: ['ids'],
+    },
+  },
+  {
+    name: 'memory_get',
+    description: 'Layer 3 of progressive search. Get a single memory by ID with full content.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id'],
     },
   },
   {
@@ -218,7 +239,32 @@ export function createHandlers(getSessionContext) {
         project: args.project || ctx.project,
         limit: args.limit || 20,
       });
+      const mode = args.mode || 'index';
+      if (mode === 'index') {
+        const compact = memories.map(m => ({
+          id: m.id,
+          snippet: (m.content || '').substring(0, 120) + ((m.content || '').length > 120 ? '…' : ''),
+          level: m.level,
+          tags: m.tags,
+          project: m.project,
+          created: m.created,
+        }));
+        return { content: [{ type: 'text', text: JSON.stringify(compact) }] };
+      }
       return { content: [{ type: 'text', text: JSON.stringify(memories) }] };
+    },
+
+    memory_preview: (args) => {
+      const memories = store.getByIds(args.ids || []);
+      return { content: [{ type: 'text', text: JSON.stringify(memories) }] };
+    },
+
+    memory_get: (args) => {
+      const memory = store.getById(args.id);
+      if (!memory) {
+        return { content: [{ type: 'text', text: JSON.stringify({ error: 'Memory not found' }) }], isError: true };
+      }
+      return { content: [{ type: 'text', text: JSON.stringify(memory) }] };
     },
 
     memory_remove: (args) => {

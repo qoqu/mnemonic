@@ -106,8 +106,9 @@ function handleApi(req, res, url) {
   const pathname = url.pathname;
   const searchParams = url.searchParams;
 
-  // GET /api/memories — search / list
+  // GET /api/memories — progressive search
   if (method === 'GET' && pathname === '/api/memories') {
+    const mode = searchParams.get('mode') || 'full';
     const memories = store.search({
       query: searchParams.get('query') || '',
       levels: searchParams.get('levels') ? searchParams.get('levels').split(',') : undefined,
@@ -115,7 +116,28 @@ function handleApi(req, res, url) {
       project: searchParams.get('project') || undefined,
       limit: parseInt(searchParams.get('limit') || '50', 10),
     });
+    if (mode === 'index') {
+      return json(res, memories.map(m => ({
+        id: m.id,
+        snippet: (m.content || '').substring(0, 120) + ((m.content || '').length > 120 ? '…' : ''),
+        level: m.level, tags: m.tags, project: m.project, created: m.created,
+      })));
+    }
     return json(res, memories);
+  }
+
+  // GET /api/memories/:id — get single memory (Layer 3)
+  const memGetMatch = pathname.match(/^\/api\/memories\/(.+)$/);
+  if (method === 'GET' && memGetMatch) {
+    const memory = store.getById(memGetMatch[1]);
+    if (!memory) { return json(res, { error: 'Not found' }, 404); }
+    return json(res, memory);
+  }
+
+  // GET /api/memories-preview?ids= — preview by IDs (Layer 2)
+  if (method === 'GET' && pathname === '/api/memories-preview') {
+    const ids = searchParams.get('ids') ? searchParams.get('ids').split(',') : [];
+    return json(res, store.getByIds(ids));
   }
 
   // GET /api/stats
