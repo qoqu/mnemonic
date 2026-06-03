@@ -8,7 +8,7 @@ Hermes 写的记忆，OpenClaw 能搜到，Claude Code 也能读到——但各�
 
 ## 特性
 
-- **7 个 MCP 工具** — 增删改查统统计 + 自动会话日志
+- **11 个 MCP 工具** — 增删改查 + 自动日志 + 设备迁移（对话导入导出）
 - **三层隔离** — global / namespace / project
 - **双传输模式** — stdio（本地）+ HTTP/SSE（跨设备）
 - **管理界面** — 浏览器打开 `http://localhost:PORT/`
@@ -41,6 +41,29 @@ MNEMONIC_PORT=3456 node src/index.js
 | `memory_list` | 按作用域浏览，按最近更新排序 |
 | `memory_stats` | 统计：各层级数量、7 天活跃度、标签分组 |
 | `memory_log_tick` | 轻量会话日志——自动记录当前工作状态，不污染记忆库 |
+| `conversation_save` | 保存全量对话——设备迁移用，不在管理界面展示 |
+| `conversation_list` | 列出已保存的对话（仅元数据） |
+| `conversation_get` | 按 session_id 取全量对话内容 |
+| `conversation_remove` | 删除已保存的对话 |
+
+## 设备迁移
+
+全量对话保存在数据库中，换设备后可以恢复上下文。
+
+```bash
+# 旧设备上保存对话
+curl -X POST http://localhost:3456/api/conversations \
+  -H "Content-Type: application/json" \
+  -d '{"session_id":"my-session-001","project":"myapp","content":"完整对话内容...","turn_count":42,"summary":"重构了记忆存储"}}'
+
+# 新设备上列出已保存的对话
+curl "http://localhost:3456/api/conversations?namespace=reasonix"
+
+# 获取某次对话全文
+curl "http://localhost:3456/api/conversations/my-session-001"
+```
+
+数据存在同一 SQLite 数据库的 `conversations` 表中，如果数据库在同步盘上则自动同步。不在管理界面展示。
 
 ## 自动会话日志（Tick）
 
@@ -160,6 +183,10 @@ HTTP 模式下打开 `http://localhost:3456/`：
 | `PUT` | `/api/memories/:id` | 更新 `{content?, tags?, source?, level?, project?}` |
 | `DELETE` | `/api/memories/:id` | 删除 |
 | `GET` | `/api/stats` | 统计 |
+| `GET` | `/api/conversations?namespace=&project=` | 列出已保存对话（设备迁移） |
+| `POST` | `/api/conversations` | 保存对话 `{session_id, content, project?}` |
+| `GET` | `/api/conversations/:session_id` | 获取完整对话内容 |
+| `DELETE` | `/api/conversations/:session_id` | 删除已保存对话 |
 
 ## 环境变量
 
