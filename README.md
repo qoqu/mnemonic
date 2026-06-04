@@ -116,9 +116,20 @@ curl -X POST http://localhost:3456/api/log \
 
 To replay a session's timeline: `memory_search(tags=["session-log"], project="mnemonic")`.
 
-## Layer model
+## Importance levels
 
-| Level | Visible to | Example |
+Every memory has an importance level. Agent auto-saves after significant actions:
+
+| Level | When | Who saves |
+|-------|------|-----------|
+| `critical` | Security issues, breaking changes, data loss | Agent auto-detects |
+| `high` | Manual "remember this" by user | **You say "记住这个"** |
+| `normal` | Useful info, design decisions, fixes | Agent auto-captures |
+| `low` | Session ticks, transient notes | `memory_log_tick` only |
+
+Auto-capture: Agent calls `memory_add(importance="normal")` automatically after file edits, bug fixes, decisions, config changes. No need to say "remember this" for routine work.
+
+## Layer model
 |-------|-----------|---------|
 | `global` | Every agent, every project | "Use `const` over `let`" |
 | `namespace` | One agent only | "Hermes — user prefers arrow functions" |

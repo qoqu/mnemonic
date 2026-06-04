@@ -115,9 +115,20 @@ curl -X POST http://localhost:3456/api/log \
 
 查看某个会话的时间线：`memory_search(tags=["session-log"], project="mnemonic")`
 
-## 三层隔离
+## 重要度
 
-| 层级 | 谁可见 | 场景 |
+每条记忆有重要度标记。Agent 会在重要操作后自动保存：
+
+| 级别 | 使用场景 | 谁触发 |
+|------|---------|--------|
+| `critical` | 安全问题、破坏性变更、数据丢失 | Agent 自动识别 |
+| `high` | **你说"记住这个"** | 你手动 |
+| `normal` | 日常决策、设计选择、修复 | Agent 自动捕捉 |
+| `low` | 会话 Tick、临时记录 | `memory_log_tick` 专用 |
+
+Agent 在文件编辑、决策、修复后自动调 `memory_add(importance="normal")`，无需每次手动说。
+
+## 三层隔离
 |------|--------|------|
 | `global` | 所有 Agent 所有项目 | "用 const 不用 let" |
 | `namespace` | 仅该 Agent | "Hermes — 用户偏好箭头函数" |
