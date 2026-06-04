@@ -386,12 +386,14 @@ function syncRestore() {
 function main() {
   syncRestore();
   getDb();
-  startupHealthCheck();
+  // 先启动 MCP 服务，再慢慢做健康检查（避免阻塞 MCP 握手）
   if (PORT > 0) {
-    // HTTP 模式不需要 stderr 缓冲
     startHttpMode();
+    startupHealthCheck();
   } else {
     startStdioMode();
+    // stdio 模式下健康检查后延，不阻塞工具发现
+    setTimeout(() => startupHealthCheck(), 1000);
   }
 }
 
