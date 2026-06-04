@@ -353,11 +353,10 @@ export function createHandlers(getSessionContext) {
 
       // Session→project mapping (from known sessions)
       const projectMap = {
-        'desktop-202605181311-1': 'zidu-novel-studio',
         'desktop-202605181551-1': 'zidu-novel-studio',
         'desktop-202605211015-1': '个人知识库',
         'desktop-202605221121-1': 'general',
-        'desktop-202605231553-1': 'zidu-novel-studio',
+        'desktop-202605231553-1': '热点创作工作流',
         'desktop-202605271537-1': 'UUMit',
         'desktop-202605280725-1': 'novel-world-engine',
         'desktop-202605310842-1': 'reasonix-buddy',
