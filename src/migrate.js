@@ -9,7 +9,7 @@
  *   3. 向前兼容，不破坏已有数据
  */
 
-const SCHEMA_VERSION = 4; // 当前 schema 版本号
+const SCHEMA_VERSION = 5; // 当前 schema 版本号
 const VERSION_TABLE = 'schema_version';
 
 // ── 迁移定义 ──────────────────────────────────────────────────────────
@@ -109,6 +109,13 @@ const MIGRATIONS = {
     try { db.exec('DROP TRIGGER IF EXISTS memories_ad'); } catch {}
     try { db.exec('DROP TRIGGER IF EXISTS memories_au'); } catch {}
     try { db.exec('DROP TABLE IF EXISTS memories_fts'); } catch {}
+  },
+
+  // v5: 添加 importance 字段
+  5: (db) => {
+    if (!hasColumn(db, 'memories', 'importance')) {
+      db.exec("ALTER TABLE memories ADD COLUMN importance TEXT NOT NULL DEFAULT 'normal' CHECK(importance IN ('low','normal','high','critical'))");
+    }
   },
 };
 

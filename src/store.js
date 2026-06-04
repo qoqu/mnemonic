@@ -39,6 +39,7 @@ function rowsToMemories(rows) {
     tags: JSON.parse(r.tags || '[]'),
     source: r.source,
     access_count: r.access_count,
+    importance: r.importance || 'normal',
     created: r.created,
     updated: r.updated,
   }));
@@ -46,7 +47,7 @@ function rowsToMemories(rows) {
 
 // ── CRUD ─────────────────────────────────────────────────────────────
 
-export function add({ content, level, namespace, project, tags, source }) {
+export function add({ content, level, namespace, project, tags, source, importance }) {
   const db = getDb();
   const id = `mem_${randomUUID().slice(0, 8)}`;
   const resolvedLevel = resolveLevel(level, namespace, project);
@@ -54,9 +55,9 @@ export function add({ content, level, namespace, project, tags, source }) {
   const tagsJson = parseTags(tags);
 
   db.prepare(`
-    INSERT INTO memories (id, content, level, namespace, project, tags, source, created, updated)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, content, resolvedLevel, namespace || '', project || '', tagsJson, source || '', ts, ts);
+    INSERT INTO memories (id, content, level, namespace, project, tags, source, importance, created, updated)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, content, resolvedLevel, namespace || '', project || '', tagsJson, source || '', importance || 'normal', ts, ts);
 
   return { id, level: resolvedLevel };
 }
@@ -112,7 +113,7 @@ export function remove({ id, old_text, namespace }) {
   return { deleted: false, error: '需要 id 或 old_text' };
 }
 
-export function update({ id, content, tags, source, level, project }) {
+export function update({ id, content, tags, source, level, project, importance }) {
   const db = getDb();
   const ts = now();
   const updates = [];
@@ -123,6 +124,7 @@ export function update({ id, content, tags, source, level, project }) {
   if (source !== undefined) { updates.push('source = ?'); params.push(source); }
   if (level !== undefined) { updates.push('level = ?'); params.push(level); }
   if (project !== undefined) { updates.push('project = ?'); params.push(project); }
+  if (importance !== undefined) { updates.push('importance = ?'); params.push(importance); }
   if (updates.length === 0) return { updated: false };
 
   updates.push('updated = ?');
