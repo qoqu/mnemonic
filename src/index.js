@@ -28,6 +28,7 @@ import { exportToKb } from './export.js';
 import * as store from './store.js';
 import { installStderrBuffer, emitDiagnostic, emitBlockingError } from './io-discipline.js';
 import { startupHealthCheck, healthCheck } from './health.js';
+import { startSyncHeartbeat } from './sync-heartbeat.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -322,6 +323,9 @@ function startHttpMode() {
     process.stderr.write(
       `[mnemonic] HTTP mode on http://0.0.0.0:${PORT} | ns=${sessionContext.namespace} proj=${sessionContext.project || '-'}\n`,
     );
+    // 启动同步心跳（如果配置了 MNEMONIC_SYNC_DIR）
+    const syncDir = process.env.MNEMONIC_SYNC_DIR || process.env.MNEMONIC_DB_DIR;
+    if (syncDir) startSyncHeartbeat(syncDir, 300);
   });
 }
 
