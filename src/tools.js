@@ -143,14 +143,14 @@ Default mode is "index" — use mode="full" for the traditional verbose output.`
     name: 'export_to_kb',
     description: `Export memories / full conversations to knowledge base inbox.
 
+AUTO-SYNC: Before session end, automatically call this tool to sync new memories
+to your Obsidian Vault. Only NEW memories (not in export_log) are exported — safe
+to call multiple times.
+
 Two export modes via the 'type' param:
   "summary" (default) — export memory summaries to KB (uses kb-mapping.json)
   "full"             — export full conversation transcripts from session files
   "both"             — export both summaries + full conversations
-
-Full conversation export reads the original Reasonix session files (.jsonl),
-formats them as readable markdown with user/AI/tool calls, and writes them
-to 📥/原始资料/ for later KB ingestion via sort.js.
 
 Mapping rules (summary mode):
   - Project name → kb-mapping.json determines target (memory/neurons/raw)
@@ -170,7 +170,7 @@ Config:
         type: { type: 'string', enum: ['summary', 'full', 'both'], description: 'Export type. Default summary' },
         dry_run: { type: 'boolean', description: 'Preview without writing files' },
       },
-      required: ['project'],
+      required: [],
     },
   },
   {
