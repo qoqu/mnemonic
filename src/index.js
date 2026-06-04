@@ -147,10 +147,6 @@ function handleApi(req, res, url) {
     return json(res, healthCheck({ autoFix: false }));
   }
 
-  // GET /api/stats
-    return json(res, store.stats());
-  }
-
   // POST /api/memories — add
   if (method === 'POST' && pathname === '/api/memories') {
     readBody(req).then(body => {
