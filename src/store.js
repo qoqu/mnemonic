@@ -193,9 +193,12 @@ export function stats({ namespace } = {}) {
 
 export function convSave({ session_id, namespace, project, content, turn_count, summary, created }) {
   const db = getDb();
-  const id = `conv_${randomUUID().slice(0, 8)}`;
   const ts = now();
   const createdAt = created || ts;
+
+  // 检查是否已存在同 session_id 的记录
+  const existing = db.prepare('SELECT id FROM conversations WHERE session_id = ?').get(session_id);
+  const id = existing ? existing.id : `conv_${randomUUID().slice(0, 8)}`;
 
   db.prepare(`
     INSERT OR REPLACE INTO conversations (id, session_id, namespace, project, content, turn_count, summary, created, updated)
