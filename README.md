@@ -194,11 +194,13 @@ curl http://localhost:3456/health
 
 Open `http://localhost:3456/` in your browser when running in HTTP mode:
 
-- Browse all memories in a table
-- Search by keyword
-- Filter by level / namespace / project
-- Add, edit, delete entries
-- View stats at a glance
+- **Memories table** — browse all entries, full content by default
+- **Search** — auto-switches to compact preview (120 chars), click **👁** to expand full content
+- **Filter** — by level (global/namespace/project), namespace, or project name
+- **Timeline** — checkbox toggles a right-panel session activity timeline
+- **Add / edit / delete** — inline modal forms
+- **Stats bar** — Total / Global / Namespace / Project / Last 7 days counts
+- **Health cards** — schema version (`v4`), DB integrity (`✓`/`✗`), Queue status (`✓`/`⚠`)
 
 ## REST API (for non-MCP clients)
 

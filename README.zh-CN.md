@@ -193,11 +193,13 @@ curl http://localhost:3456/health
 
 HTTP 模式下打开 `http://localhost:3456/`：
 
-- 表格浏览所有记忆
-- 关键词搜索
-- 按 level / namespace / project 筛选
-- 新增、编辑、删除
-- 统计面板
+- **记忆表格** — 默认显示全部内容
+- **搜索** — 自动切换为紧凑模式（前 120 字摘要），点 **👁** 展开全文
+- **筛选** — 按 level / namespace / project
+- **Timeline** — 勾选后右侧显示会话活动时间轴
+- **新增、编辑、删除** — 弹窗操作
+- **统计栏** — Total / Global / Namespace / Project / Last 7 days
+- **健康卡** — schema 版本（`v4`）、DB 完整性（`✓`/`✗`）、队列状态（`✓`/`⚠`）
 
 ## REST API
 
