@@ -191,15 +191,16 @@ export function stats({ namespace } = {}) {
 
 // ── 全量对话存储（设备迁移） ─────────────────────────────────────────
 
-export function convSave({ session_id, namespace, project, content, turn_count, summary }) {
+export function convSave({ session_id, namespace, project, content, turn_count, summary, created }) {
   const db = getDb();
   const id = `conv_${randomUUID().slice(0, 8)}`;
   const ts = now();
+  const createdAt = created || ts;
 
   db.prepare(`
     INSERT OR REPLACE INTO conversations (id, session_id, namespace, project, content, turn_count, summary, created, updated)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, session_id, namespace || '', project || '', content, turn_count || 0, summary || '', ts, ts);
+  `).run(id, session_id, namespace || '', project || '', content, turn_count || 0, summary || '', createdAt, ts);
 
   return { id, session_id };
 }

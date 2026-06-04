@@ -373,9 +373,12 @@ export function createHandlers(getSessionContext) {
           const content = readFileSync(join(sessionsDir, file), 'utf8');
           const lines = content.split('\n').filter(l => l.trim()).length;
           const project = projectMap[sessionId] || defaultProject;
+          // Extract date from filename: desktop-YYYYMMDD... → YYYY-MM-DD
+          const dateMatch = sessionId.match(/(\d{4})(\d{2})(\d{2})/);
+          const createdDate = dateMatch ? `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}T00:00:00.000Z` : undefined;
           store.convSave({
             session_id: sessionId, namespace, project,
-            content, turn_count: lines,
+            content, turn_count: lines, created: createdDate,
             summary: `Imported from ${file} (${lines} turns)`,
           });
           imported++;
