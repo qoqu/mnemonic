@@ -19,7 +19,7 @@ import {
   CallToolRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { createServer } from 'http';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, copyFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { getDb, close } from './db.js';
@@ -360,9 +360,31 @@ async function startStdioMode() {
   if (buf) buf.drop();
 }
 
+// ── 启动时从同步盘导入 ─────────────────────────────────────────────
+
+function syncRestore() {
+  const syncDir = process.env.MNEMONIC_SYNC_DIR || process.env.MNEMONIC_DB_DIR;
+  if (!syncDir) return;
+  const localPath = join(__dirname, '..', 'data', 'memories.db');
+  const syncPath = join(syncDir, 'memories.db');
+  if (!existsSync(syncPath)) return;
+  // 本地 db 不存在或为空 → 从同步盘拉一份
+  if (!existsSync(localPath)) {
+    const localDir = join(__dirname, '..', 'data');
+    if (!existsSync(localDir)) mkdirSync(localDir, { recursive: true });
+    copyFileSync(syncPath, localPath);
+    // 也复制 WAL/SHM
+    for (const ext of ['-wal', '-shm']) {
+      try { copyFileSync(syncPath + ext, localPath + ext); } catch {}
+    }
+    process.stderr.write(`[mnemonic] Restored database from sync drive\n`);
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────
 
 function main() {
+  syncRestore();
   getDb();
   startupHealthCheck();
   if (PORT > 0) {
