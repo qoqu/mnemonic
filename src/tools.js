@@ -183,6 +183,7 @@ Use this for bulk migration — imports all sessions at once.`,
         namespace: { type: 'string', description: 'Agent namespace (default: from env)' },
         project: { type: 'string', description: 'Default project for sessions without mapping' },
         sessions_dir: { type: 'string', description: 'Path to session files directory (default: $MNEMONIC_SESSIONS_DIR)' },
+        session_map: { type: 'string', description: 'JSON mapping of session_id→project, e.g. {"session-1":"proj"}' },
       },
     },
   },
@@ -351,19 +352,12 @@ export function createHandlers(getSessionContext) {
       const namespace = args.namespace || ctx.namespace || 'default';
       const defaultProject = args.project || ctx.project || '';
 
-      // Session→project mapping (from known sessions)
-      const projectMap = {
-        'desktop-202605181551-1': 'zidu-novel-studio',
-        'desktop-202605211015-1': '个人知识库',
-        'desktop-202605221121-1': 'general',
-        'desktop-202605231553-1': '热点创作工作流',
-        'desktop-202605271537-1': 'UUMit',
-        'desktop-202605280725-1': 'novel-world-engine',
-        'desktop-202605310842-1': 'reasonix-buddy',
-        'desktop-202606010654-1': 'Edge 插件',
-        'desktop-202606011437-1': 'DeepSeek-Reasonix',
-        'desktop-202606020133-1': 'mnemonic',
-      };
+      // Optional session→project mapping via JSON env var or parameter
+      let projectMap = {};
+      try {
+        const mapStr = args.session_map || process.env.MNEMONIC_SESSION_MAP || '{}';
+        projectMap = JSON.parse(mapStr);
+      } catch {}
 
       let imported = 0, errors = 0;
       for (const file of files) {
