@@ -8,7 +8,7 @@ Write memories from Hermes-Agent, query them from OpenClaw, list them from Claud
 
 ## Features
 
-- **11 MCP tools** — add, search, remove, update, list, stats, log, conversation_save/list/get/remove
+- **15 MCP tools** — add, search, remove, update, list, stats, log, preview, get, conversation tools, progressive search with token budget
 - **3-layer isolation** — global / namespace / project
 - **Dual transport** — stdio (local) **and** HTTP/SSE (cross-device)
 - **Admin UI** — built-in web interface at `http://localhost:PORT/`
@@ -36,16 +36,42 @@ MNEMONIC_PORT=3456 node src/index.js
 | Tool | What it does |
 |------|-------------|
 | `memory_add` | Add a memory. Level auto-detected: project set → `project`, namespace set → `namespace`, neither → `global` |
-| `memory_search` | LIKE-based full-text search with scope filtering |
+| `memory_search` | Progressive 3-layer search: `mode=index` (compact) or `mode=full` (verbose). Add `budget=N` for token limit |
+| `memory_preview` | Layer 2 — get selected memories by IDs with full content |
+| `memory_get` | Layer 3 — get a single memory by ID |
 | `memory_remove` | Remove by exact `id` or fuzzy `old_text` |
-| `memory_update` | Update content / tags / source by `id` |
-| `memory_list` | Browse by scope, sorted by last updated |
+| `memory_update` | Update content / tags / source / level / project by `id` |
+| `memory_list` | Browse by scope. Supports `budget=N` for token limit |
 | `memory_stats` | Stats: totals by level, 7d activity, tag groups |
 | `memory_log_tick` | Lightweight session tick — log what you're doing without polluting the store |
 | `conversation_save` | Save full conversation for device migration (not shown in UI) |
 | `conversation_list` | List saved conversations (metadata only) |
 | `conversation_get` | Retrieve a full conversation by session_id |
 | `conversation_remove` | Remove a stored conversation |
+
+## Progressive search (token-aware)
+
+3 search layers to minimize token usage — Agent-friendly, cost-aware.
+
+```
+Layer 1: memory_search(query, mode="index", budget=500)
+  → Compact index (id + ~120 chars snippet). ~50 tokens/item.
+  → Truncated by token budget if specified.
+
+Layer 2: memory_preview(ids=["mem_abc", "mem_def"])
+  → Full content for selected items. Only pay for what you open.
+
+Layer 3: memory_get(id="mem_abc")
+  → Single item, full content.
+```
+
+Admin UI auto-switches to compact mode when searching — click 👁 to expand.
+
+```bash
+curl "http://localhost:3457/api/memories?query=architecture&mode=index"
+curl "http://localhost:3457/api/memories-preview?ids=mem_abc,mem_def"
+curl "http://localhost:3457/api/memories/mem_abc"
+```
 
 ## Device migration
 
@@ -178,12 +204,15 @@ Open `http://localhost:3456/` in your browser when running in HTTP mode:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/memories?query=&level=&namespace=&limit=` | Search / list |
+| `GET` | `/api/memories?query=&level=&namespace=&limit=&mode=index` | Search (mode=index for compact, mode=full for verbose) |
+| `GET` | `/api/memories/:id` | Get single memory by ID (Layer 3) |
+| `GET` | `/api/memories-preview?ids=a,b,c` | Preview by IDs (Layer 2) |
 | `POST` | `/api/memories` | Add `{content, level?, tags?, source?}` |
 | `POST` | `/api/log` | Session tick `{context, status?, project?}` — namespace-level, auto-tagged |
 | `PUT` | `/api/memories/:id` | Update `{content?, tags?, source?, level?, project?}` |
 | `DELETE` | `/api/memories/:id` | Delete by id |
 | `GET` | `/api/stats` | Store statistics |
+| `GET` | `/api/health` | Detailed health report (schema version, DB integrity, queue status) |
 | `GET` | `/api/conversations?namespace=&project=` | List saved conversations (device migration) |
 | `POST` | `/api/conversations` | Save conversation `{session_id, content, project?}` |
 | `GET` | `/api/conversations/:session_id` | Get full conversation content |
