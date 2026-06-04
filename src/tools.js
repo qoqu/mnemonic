@@ -7,15 +7,7 @@
  */
 
 import * as store from './store.js';
-import { exportToKb } from './export.js';
-
-// ── 设备迁移工具 ─────────────────────────────────────────────────────
-// conversation_* 工具存/取全量对话数据，用于换设备时恢复上下文。
-// 数据不展示在管理界面，平时不使用——仅设备迁移时用。<｜end▁of▁thinking｜>
-
-<｜｜DSML｜｜tool_calls>
-<｜｜DSML｜｜invoke name="read_file">
-<｜｜DSML｜｜parameter name="path" string="true">/mnemonic/src/tools.js
+import { truncateByBudget, estimateTokens, withBudgetInfo } from './token-budget.js';
 
 // ── 工具元数据 ────────────────────────────────────────────────────────
 
@@ -57,22 +49,44 @@ Usage tips (model instructions):
   },
   {
     name: 'memory_search',
-    description: `Search memories via FTS5 full-text search with 3-layer isolation filtering.
+    description: `Progressive search. Three layers:
 
-Defaults to searching all levels. Use levels=["project"] to scope to current project.
-Without query, returns most recently updated entries.`,
+  Layer 1 — search(query, mode="index"):    return compact index (id + ~80 chars). ~50 tokens/item.
+  Layer 2 — memory_preview(ids):            return selected items with full content.
+  Layer 3 — memory_get(id):                 return a single item with full content.
+
+Default mode is "index" — use mode="full" for the traditional verbose output.`,
     inputSchema: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: '搜索关键词（FTS5）。不传则按最近更新排序' },
-        levels: {
-          type: 'array', items: { type: 'string', enum: ['global', 'namespace', 'project'] },
-          description: '搜索范围，不传则搜所有层级',
-        },
+        query: { type: 'string', description: '搜索关键词' },
+        mode: { type: 'string', enum: ['index', 'full'], description: 'index=紧凑(默认) full=完整' },
+        levels: { type: 'array', items: { type: 'string', enum: ['global', 'namespace', 'project'] } },
         namespace: { type: 'string', description: '按 agent 过滤' },
         project: { type: 'string', description: '按项目过滤' },
         limit: { type: 'number', description: '返回上限，默认 20' },
+        budget: { type: 'number', description: 'Token budget limit (optional)' },
       },
+    },
+  },
+  {
+    name: 'memory_preview',
+    description: 'Layer 2 of progressive search. Get selected memories by IDs with full content.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ids: { type: 'array', items: { type: 'string' }, description: 'Memory IDs to preview' },
+      },
+      required: ['ids'],
+    },
+  },
+  {
+    name: 'memory_get',
+    description: 'Layer 3 of progressive search. Get a single memory by ID with full content.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id'],
     },
   },
   {
@@ -111,6 +125,7 @@ Without query, returns most recently updated entries.`,
         namespace: { type: 'string' },
         project: { type: 'string' },
         limit: { type: 'number' },
+        budget: { type: 'number', description: 'Token budget limit (optional)' },
       },
     },
   },
@@ -242,6 +257,53 @@ Parameters:
       required: ['context'],
     },
   },
+  {
+    name: 'conversation_save',
+    description: `Save a full conversation session for device migration.
+
+Stores the entire conversation content in the database so it can be
+retrieved on another device. Not shown in the admin UI.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        session_id: { type: 'string', description: 'Unique session identifier' },
+        namespace: { type: 'string', description: 'Agent namespace (MCP Host auto-fills)' },
+        project: { type: 'string', description: 'Current project name' },
+        content: { type: 'string', description: 'Full conversation content' },
+        turn_count: { type: 'number', description: 'Number of conversation turns' },
+        summary: { type: 'string', description: 'Brief session summary' },
+      },
+      required: ['session_id', 'content'],
+    },
+  },
+  {
+    name: 'conversation_list',
+    description: 'List saved full conversations for device migration. Returns metadata without full content.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        namespace: { type: 'string' }, project: { type: 'string' }, limit: { type: 'number' },
+      },
+    },
+  },
+  {
+    name: 'conversation_get',
+    description: 'Retrieve a full conversation by session_id. For context restoration on a new device.',
+    inputSchema: {
+      type: 'object',
+      properties: { session_id: { type: 'string' } },
+      required: ['session_id'],
+    },
+  },
+  {
+    name: 'conversation_remove',
+    description: 'Remove a stored full conversation by session_id.',
+    inputSchema: {
+      type: 'object',
+      properties: { session_id: { type: 'string' } },
+      required: ['session_id'],
+    },
+  },
 ];
 
 // ── 工具处理函数 ─────────────────────────────────────────────────────
@@ -270,7 +332,35 @@ export function createHandlers(getSessionContext) {
         project: args.project || ctx.project,
         limit: args.limit || 20,
       });
+      const budget = args.budget;
+      const mode = args.mode || 'index';
+      if (mode === 'index') {
+        let compact = memories.map(m => ({
+          id: m.id,
+          snippet: (m.content || '').substring(0, 120) + ((m.content || '').length > 120 ? '…' : ''),
+          level: m.level,
+          tags: m.tags,
+          project: m.project,
+          created: m.created,
+        }));
+        if (budget) compact = truncateByBudget(compact, budget, m => m.snippet);
+        return { content: [{ type: 'text', text: JSON.stringify(compact) }] };
+      }
+      const truncated = budget ? truncateByBudget(memories, budget) : memories;
+      return { content: [{ type: 'text', text: JSON.stringify(truncated) }] };
+    },
+
+    memory_preview: (args) => {
+      const memories = store.getByIds(args.ids || []);
       return { content: [{ type: 'text', text: JSON.stringify(memories) }] };
+    },
+
+    memory_get: (args) => {
+      const memory = store.getById(args.id);
+      if (!memory) {
+        return { content: [{ type: 'text', text: JSON.stringify({ error: 'Memory not found' }) }], isError: true };
+      }
+      return { content: [{ type: 'text', text: JSON.stringify(memory) }] };
     },
 
     memory_remove: (args) => {
@@ -296,7 +386,8 @@ export function createHandlers(getSessionContext) {
         project: args.project || ctx.project,
         limit: args.limit || 50,
       });
-      return { content: [{ type: 'text', text: JSON.stringify(memories) }] };
+      const result = args.budget ? truncateByBudget(memories, args.budget) : memories;
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
     },
 
     memory_stats: (args) => {

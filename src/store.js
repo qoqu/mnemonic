@@ -151,6 +151,21 @@ export function list({ levels, namespace, project, limit = 50 }) {
   return rowsToMemories(rows);
 }
 
+export function getById(id) {
+  const db = getDb();
+  const row = db.prepare('SELECT * FROM memories WHERE id = ?').get(id);
+  if (!row) return null;
+  return rowsToMemories([row])[0];
+}
+
+export function getByIds(ids) {
+  if (!ids || ids.length === 0) return [];
+  const db = getDb();
+  const ph = ids.map(() => '?');
+  const rows = db.prepare(`SELECT * FROM memories WHERE id IN (${ph.join(',')})`).all(...ids);
+  return rowsToMemories(rows);
+}
+
 export function stats({ namespace } = {}) {
   const db = getDb();
 
@@ -204,9 +219,7 @@ export function convList({ namespace, project, limit = 50 }) {
 
 export function convGet(session_id) {
   const db = getDb();
-  const row = db.prepare('SELECT * FROM conversations WHERE session_id = ?').get(session_id);
-  if (!row) return null;
-  return row;
+  return db.prepare('SELECT * FROM conversations WHERE session_id = ?').get(session_id) || null;
 }
 
 export function convDelete(session_id) {

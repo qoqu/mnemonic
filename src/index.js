@@ -26,6 +26,8 @@ import { getDb, close } from './db.js';
 import { TOOLS, createHandlers } from './tools.js';
 import { exportToKb } from './export.js';
 import * as store from './store.js';
+import { installStderrBuffer, emitDiagnostic, emitBlockingError } from './io-discipline.js';
+import { startupHealthCheck, healthCheck } from './health.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -106,8 +108,9 @@ function handleApi(req, res, url) {
   const pathname = url.pathname;
   const searchParams = url.searchParams;
 
-  // GET /api/memories — search / list
+  // GET /api/memories — progressive search
   if (method === 'GET' && pathname === '/api/memories') {
+    const mode = searchParams.get('mode') || 'full';
     const memories = store.search({
       query: searchParams.get('query') || '',
       levels: searchParams.get('levels') ? searchParams.get('levels').split(',') : undefined,
@@ -115,11 +118,36 @@ function handleApi(req, res, url) {
       project: searchParams.get('project') || undefined,
       limit: parseInt(searchParams.get('limit') || '50', 10),
     });
+    if (mode === 'index') {
+      return json(res, memories.map(m => ({
+        id: m.id,
+        snippet: (m.content || '').substring(0, 120) + ((m.content || '').length > 120 ? '…' : ''),
+        level: m.level, tags: m.tags, project: m.project, created: m.created,
+      })));
+    }
     return json(res, memories);
   }
 
+  // GET /api/memories/:id — get single memory (Layer 3)
+  const memGetMatch = pathname.match(/^\/api\/memories\/(.+)$/);
+  if (method === 'GET' && memGetMatch) {
+    const memory = store.getById(memGetMatch[1]);
+    if (!memory) { return json(res, { error: 'Not found' }, 404); }
+    return json(res, memory);
+  }
+
+  // GET /api/memories-preview?ids= — preview by IDs (Layer 2)
+  if (method === 'GET' && pathname === '/api/memories-preview') {
+    const ids = searchParams.get('ids') ? searchParams.get('ids').split(',') : [];
+    return json(res, store.getByIds(ids));
+  }
+
+  // GET /api/health — detailed health report
+  if (method === 'GET' && pathname === '/api/health') {
+    return json(res, healthCheck({ autoFix: false }));
+  }
+
   // GET /api/stats
-  if (method === 'GET' && pathname === '/api/stats') {
     return json(res, store.stats());
   }
 
@@ -220,26 +248,6 @@ function handleApi(req, res, url) {
     return json(res, result);
   }
 
-  // GET /api/export?project=&since=&tags=&type=&dry_run= — export to KB
-  if (method === 'GET' && pathname === '/api/export') {
-    const result = exportToKb({
-      project: searchParams.get('project') || sessionContext.project,
-      since: searchParams.get('since') || undefined,
-      tags: searchParams.get('tags') ? searchParams.get('tags').split(',') : undefined,
-      type: searchParams.get('type') || 'summary',
-      dryRun: searchParams.get('dry_run') === 'true',
-      namespace: sessionContext.namespace,
-    });
-    // exportToKb returns MCP format, extract the JSON text
-    try {
-      const text = result.content[0].text;
-      json(res, JSON.parse(text));
-    } catch {
-      json(res, result);
-    }
-    return;
-  }
-
   json(res, { error: 'Not found' }, 404);
 }
 
@@ -319,17 +327,33 @@ function startHttpMode() {
 // ── Stdio mode ────────────────────────────────────────────────────────
 
 async function startStdioMode() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  process.stderr.write(`[mnemonic] stdio mode | ns=${sessionContext.namespace} proj=${sessionContext.project || '-'}\n`);
+  const buf = installStderrBuffer();
+  try {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    emitDiagnostic(`[mnemonic] stdio mode | ns=${sessionContext.namespace} proj=${sessionContext.project || '-'}`);
+  } catch (err) {
+    // 失败时冲刷缓冲，让诊断信息可见
+    if (buf) buf.flush();
+    emitBlockingError(`[mnemonic] fatal: ${err.message}`);
+    close();
+    process.exit(1);
+  }
+  // 成功时丢弃缓冲——不污染 MCP JSON-RPC 协议流
+  if (buf) buf.drop();
 }
 
 // ── Main ──────────────────────────────────────────────────────────────
 
 function main() {
   getDb();
-  if (PORT > 0) { startHttpMode(); }
-  else { startStdioMode().catch(err => { process.stderr.write(`[mnemonic] fatal: ${err.message}\n`); close(); process.exit(1); }); }
+  startupHealthCheck();
+  if (PORT > 0) {
+    // HTTP 模式不需要 stderr 缓冲
+    startHttpMode();
+  } else {
+    startStdioMode();
+  }
 }
 
 main();
