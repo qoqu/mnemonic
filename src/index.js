@@ -248,6 +248,19 @@ function handleApi(req, res, url) {
     return json(res, result);
   }
 
+  // POST /api/conversations/import — bulk import session files
+  if (method === 'POST' && pathname === '/api/conversations/import') {
+    // Use the MCP handler directly
+    const result = handlers.conversation_import({
+      sessions_dir: searchParams.get('sessions_dir') || undefined,
+      namespace: searchParams.get('namespace') || undefined,
+      project: searchParams.get('project') || undefined,
+    });
+    try { json(res, JSON.parse(result.content[0].text)); }
+    catch { json(res, result); }
+    return;
+  }
+
   json(res, { error: 'Not found' }, 404);
 }
 

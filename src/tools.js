@@ -6,6 +6,8 @@
  * Server API instead to keep schemas clean.
  */
 
+import { readFileSync, readdirSync } from 'fs';
+import { join } from 'path';
 import * as store from './store.js';
 import { truncateByBudget, estimateTokens, withBudgetInfo } from './token-budget.js';
 
@@ -168,6 +170,23 @@ Parameters:
     },
   },
   {
+    name: 'conversation_import',
+    description: `Import all session files from a directory into the conversations table.
+
+Reads all .jsonl files from MNEMONIC_SESSIONS_DIR (or the specified directory),
+saves each to the conversations table, overwriting any existing data.
+
+Use this for bulk migration — imports all sessions at once.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        namespace: { type: 'string', description: 'Agent namespace (default: from env)' },
+        project: { type: 'string', description: 'Default project for sessions without mapping' },
+        sessions_dir: { type: 'string', description: 'Path to session files directory (default: $MNEMONIC_SESSIONS_DIR)' },
+      },
+    },
+  },
+  {
     name: 'conversation_save',
     description: `Save a full conversation session for device migration.
 
@@ -322,6 +341,51 @@ export function createHandlers(getSessionContext) {
     },
 
     // ── 设备迁移 ──────────────────────────────────────────────────
+    conversation_import: (args) => {
+      const ctx = getSessionContext();
+      const sessionsDir = args.sessions_dir || process.env.MNEMONIC_SESSIONS_DIR;
+      if (!sessionsDir) {
+        return { content: [{ type: 'text', text: JSON.stringify({ error: 'sessions_dir required or set MNEMONIC_SESSIONS_DIR' }) }], isError: true };
+      }
+      const files = readdirSync(sessionsDir).filter(f => f.endsWith('.jsonl') && !f.includes('.bak'));
+      const namespace = args.namespace || ctx.namespace || 'default';
+      const defaultProject = args.project || ctx.project || '';
+
+      // Session→project mapping (from known sessions)
+      const projectMap = {
+        'desktop-202605181311-1': 'zidu-novel-studio',
+        'desktop-202605181551-1': 'zidu-novel-studio',
+        'desktop-202605211015-1': '个人知识库',
+        'desktop-202605221121-1': 'general',
+        'desktop-202605231553-1': 'zidu-novel-studio',
+        'desktop-202605271537-1': 'UUMit',
+        'desktop-202605280725-1': 'novel-world-engine',
+        'desktop-202605310842-1': 'reasonix-buddy',
+        'desktop-202606010654-1': 'Edge 插件',
+        'desktop-202606011437-1': 'DeepSeek-Reasonix',
+        'desktop-202606020133-1': 'mnemonic',
+      };
+
+      let imported = 0, errors = 0;
+      for (const file of files) {
+        const sessionId = file.replace('.jsonl', '');
+        try {
+          const content = readFileSync(join(sessionsDir, file), 'utf8');
+          const lines = content.split('\n').filter(l => l.trim()).length;
+          const project = projectMap[sessionId] || defaultProject;
+          store.convSave({
+            session_id: sessionId, namespace, project,
+            content, turn_count: lines,
+            summary: `Imported from ${file} (${lines} turns)`,
+          });
+          imported++;
+        } catch (e) {
+          errors++;
+        }
+      }
+      return { content: [{ type: 'text', text: JSON.stringify({ imported, errors, total: files.length }) }] };
+    },
+
     conversation_save: (args) => {
       const ctx = getSessionContext();
       const result = store.convSave({
