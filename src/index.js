@@ -26,7 +26,7 @@ import { getDb, close } from './db.js';
 import { TOOLS, createHandlers } from './tools.js';
 import * as store from './store.js';
 import { installStderrBuffer, emitDiagnostic, emitBlockingError } from './io-discipline.js';
-import { startupHealthCheck } from './health.js';
+import { startupHealthCheck, healthCheck } from './health.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -141,8 +141,12 @@ function handleApi(req, res, url) {
     return json(res, store.getByIds(ids));
   }
 
+  // GET /api/health — detailed health report
+  if (method === 'GET' && pathname === '/api/health') {
+    return json(res, healthCheck({ autoFix: false }));
+  }
+
   // GET /api/stats
-  if (method === 'GET' && pathname === '/api/stats') {
     return json(res, store.stats());
   }
 

@@ -330,6 +330,24 @@ async function loadStats() {
     <div class="stat-card p"><div class="num">${stats.by_level?.project || 0}</div><div class="label">Project</div></div>
     <div class="stat-card t"><div class="num">${stats.recent_7d}</div><div class="label">Last 7 days</div></div>
   `;
+  loadHealth();
+}
+
+// ── Health ──────────────────────────────────────────────────────────
+async function loadHealth() {
+  try {
+    const h = await api('/api/health');
+    const sc = h.checks;
+    const color = h.pass ? 'var(--green)' : 'var(--orange)';
+    const sv = sc.schema?.detail || '?';
+    const queueOk = sc.orphans?.pass !== false;
+    const integOk = sc.integrity?.pass !== false;
+    document.getElementById('stats').innerHTML += `
+      <div class="stat-card" style="min-width:80px"><div class="num" style="font-size:14px;color:${color}">${h.pass ? '✓' : '⚠'}</div><div class="label">${sv}</div></div>
+      <div class="stat-card" style="min-width:80px"><div class="num" style="font-size:14px;color:${integOk ? color : 'var(--red)'}">${integOk ? '✓' : '✗'}</div><div class="label">DB</div></div>
+      <div class="stat-card" style="min-width:80px"><div class="num" style="font-size:14px;color:${queueOk ? color : 'var(--orange)'}">${queueOk ? '✓' : '⚠'}</div><div class="label">Queue</div></div>
+    `;
+  } catch {}
 }
 
 // ── Load ────────────────────────────────────────────────────────────
