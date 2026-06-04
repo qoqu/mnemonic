@@ -147,6 +147,7 @@ function handleApi(req, res, url) {
   }
 
   // GET /api/stats
+  if (method === 'GET' && pathname === '/api/stats') {
     return json(res, store.stats());
   }
 
