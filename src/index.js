@@ -26,6 +26,7 @@ import { getDb, close } from './db.js';
 import { TOOLS, createHandlers } from './tools.js';
 import * as store from './store.js';
 import { installStderrBuffer, emitDiagnostic, emitBlockingError } from './io-discipline.js';
+import { startupHealthCheck } from './health.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -341,6 +342,7 @@ async function startStdioMode() {
 
 function main() {
   getDb();
+  startupHealthCheck();
   if (PORT > 0) {
     // HTTP 模式不需要 stderr 缓冲
     startHttpMode();

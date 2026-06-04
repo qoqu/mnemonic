@@ -7,6 +7,7 @@
  */
 
 import * as store from './store.js';
+import { truncateByBudget, estimateTokens, withBudgetInfo } from './token-budget.js';
 
 // ── 工具元数据 ────────────────────────────────────────────────────────
 
@@ -64,6 +65,7 @@ Default mode is "index" — use mode="full" for the traditional verbose output.`
         namespace: { type: 'string', description: '按 agent 过滤' },
         project: { type: 'string', description: '按项目过滤' },
         limit: { type: 'number', description: '返回上限，默认 20' },
+        budget: { type: 'number', description: 'Token budget limit (optional)' },
       },
     },
   },
@@ -123,6 +125,7 @@ Default mode is "index" — use mode="full" for the traditional verbose output.`
         namespace: { type: 'string' },
         project: { type: 'string' },
         limit: { type: 'number' },
+        budget: { type: 'number', description: 'Token budget limit (optional)' },
       },
     },
   },
@@ -239,9 +242,10 @@ export function createHandlers(getSessionContext) {
         project: args.project || ctx.project,
         limit: args.limit || 20,
       });
+      const budget = args.budget;
       const mode = args.mode || 'index';
       if (mode === 'index') {
-        const compact = memories.map(m => ({
+        let compact = memories.map(m => ({
           id: m.id,
           snippet: (m.content || '').substring(0, 120) + ((m.content || '').length > 120 ? '…' : ''),
           level: m.level,
@@ -249,9 +253,11 @@ export function createHandlers(getSessionContext) {
           project: m.project,
           created: m.created,
         }));
+        if (budget) compact = truncateByBudget(compact, budget, m => m.snippet);
         return { content: [{ type: 'text', text: JSON.stringify(compact) }] };
       }
-      return { content: [{ type: 'text', text: JSON.stringify(memories) }] };
+      const truncated = budget ? truncateByBudget(memories, budget) : memories;
+      return { content: [{ type: 'text', text: JSON.stringify(truncated) }] };
     },
 
     memory_preview: (args) => {
@@ -290,7 +296,8 @@ export function createHandlers(getSessionContext) {
         project: args.project || ctx.project,
         limit: args.limit || 50,
       });
-      return { content: [{ type: 'text', text: JSON.stringify(memories) }] };
+      const result = args.budget ? truncateByBudget(memories, args.budget) : memories;
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
     },
 
     memory_stats: (args) => {
