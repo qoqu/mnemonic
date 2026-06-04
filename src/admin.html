@@ -369,12 +369,14 @@ async function loadMemories() {
   const showTicks = document.getElementById('show-ticks').checked;
   const sessionFilter = document.getElementById('session-filter').value;
 
+  const isSearch = !!query;
   const params = new URLSearchParams();
   if (query) params.set('query', query);
   if (level) params.set('levels', level);
   if (ns) params.set('namespace', ns);
   if (proj) params.set('project', proj);
   params.set('limit', '200');
+  if (isSearch) params.set('mode', 'index');
 
   const all = await api('/api/memories?' + params.toString());
   const memories = all.filter(m => !m.tags || !m.tags.includes('session-log'));
@@ -386,21 +388,26 @@ async function loadMemories() {
   if (!memories || memories.length === 0) {
     empty.style.display = 'block';
   } else {
-    tbody.innerHTML = memories.map((m, i) => `
-      <tr>
+    tbody.innerHTML = memories.map((m, i) => {
+      const content = m.snippet ? m.snippet : m.content;
+      const viewBtn = m.snippet
+        ? `<button class="btn btn-sm" onclick="viewMemory('${m.id}')" style="color:var(--accent)">👁</button>`
+        : '';
+      return `<tr>
         <td style="color:var(--dim);font-size:11px">${i+1}</td>
-        <td class="col-content">${escapeHtml(m.content)}</td>
+        <td class="col-content">${escapeHtml(content)}${m.snippet ? ' <span style="color:var(--dim);font-size:11px">(preview)</span>' : ''}</td>
         <td>${badge(m.level)}</td>
         <td style="font-size:12px;color:var(--dim)">${escapeHtml(m.namespace)}</td>
         <td style="font-size:12px;color:var(--dim)">${escapeHtml(m.project) || '—'}</td>
         <td>${renderTags(m.tags)}</td>
         <td class="col-time" title="${m.created}">${formatTime(m.created)}</td>
         <td class="col-actions">
+          ${viewBtn}
           <button class="btn btn-sm" onclick="openEditModal('${m.id}')">✎</button>
           <button class="btn btn-sm btn-danger" onclick="deleteMemory('${m.id}')">✕</button>
         </td>
-      </tr>
-    `).join('');
+      </tr>`;
+    }).join('');
   }
 
   // Timeline — grouped by namespace/project
@@ -482,6 +489,22 @@ async function loadMemories() {
     memories.length + ' memories' + (ticks.length ? ' (' + ticks.length + ' ticks)' : '');
 }
 
+// ── View (progressive search Layer 3) ──────────────────────────────
+async function viewMemory(id) {
+  const m = await api('/api/memories/' + id);
+  if (!m || m.error) return alert('Not found');
+  document.getElementById('modal-title').textContent = '📄 ' + (m.id || '');
+  document.getElementById('modal-content').value = m.content || '';
+  document.getElementById('modal-level').value = m.level || 'auto';
+  document.getElementById('modal-tags').value = (m.tags || []).join(', ');
+  document.getElementById('modal-source').value = m.source || '';
+  document.getElementById('modal').classList.add('open');
+  // 把保存按钮改为只读提示
+  const saveBtn = document.querySelector('#modal .btn-primary');
+  saveBtn.textContent = 'Close';
+  saveBtn.onclick = closeModal;
+}
+
 // ── Add / Edit ──────────────────────────────────────────────────────
 function openAddModal() {
   editingId = null;
@@ -491,6 +514,9 @@ function openAddModal() {
   document.getElementById('modal-tags').value = '';
   document.getElementById('modal-source').value = '';
   document.getElementById('modal').classList.add('open');
+  const saveBtn = document.querySelector('#modal .btn-primary');
+  saveBtn.textContent = 'Save';
+  saveBtn.onclick = saveMemory;
 }
 
 async function openEditModal(id) {
