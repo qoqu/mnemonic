@@ -8,7 +8,7 @@ Hermes 写的记忆，OpenClaw 能搜到，Claude Code 也能读到——但各�
 
 ## 特性
 
-- **14 个 MCP 工具** — 增删改查 + 渐进搜索 + 自动日志 + 对话导入 + 设备迁移
+- **15 个 MCP 工具** — 增删改查 + 渐进搜索 + 自动日志 + 知识库导出 + 对话导入 + 设备迁移
 - **三层隔离** — global / namespace / project
 - **双传输模式** — stdio（本地）+ HTTP/SSE（跨设备）
 - **管理界面** — 浏览器打开 `http://localhost:PORT/`
@@ -47,6 +47,7 @@ MNEMONIC_PORT=3456 node src/index.js
 | `conversation_list` | 列出已保存的对话（仅元数据） |
 | `conversation_get` | 按 session_id 取全量对话内容 |
 | `conversation_remove` | 删除已保存的对话 |
+| `export_to_kb` | 导出新记忆到 Obsidian 知识库（会话结束时自动同步） |
 | `conversation_import` | 批量导入 session 文件到对话表（覆盖旧数据） |
 
 ## 渐进式搜索（token 感知）
