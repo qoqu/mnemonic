@@ -290,53 +290,6 @@ Use this for bulk migration — imports all sessions at once.`,
       },
     },
   },
-  {
-    name: 'conversation_save',
-    description: `Save a full conversation session for device migration.
-
-Stores the entire conversation content in the database so it can be
-retrieved on another device. Not shown in the admin UI.`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        session_id: { type: 'string', description: 'Unique session identifier' },
-        namespace: { type: 'string', description: 'Agent namespace (MCP Host auto-fills)' },
-        project: { type: 'string', description: 'Current project name' },
-        content: { type: 'string', description: 'Full conversation content' },
-        turn_count: { type: 'number', description: 'Number of conversation turns' },
-        summary: { type: 'string', description: 'Brief session summary' },
-      },
-      required: ['session_id', 'content'],
-    },
-  },
-  {
-    name: 'conversation_list',
-    description: 'List saved full conversations for device migration. Returns metadata without full content.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        namespace: { type: 'string' }, project: { type: 'string' }, limit: { type: 'number' },
-      },
-    },
-  },
-  {
-    name: 'conversation_get',
-    description: 'Retrieve a full conversation by session_id. For context restoration on a new device.',
-    inputSchema: {
-      type: 'object',
-      properties: { session_id: { type: 'string' } },
-      required: ['session_id'],
-    },
-  },
-  {
-    name: 'conversation_remove',
-    description: 'Remove a stored full conversation by session_id.',
-    inputSchema: {
-      type: 'object',
-      properties: { session_id: { type: 'string' } },
-      required: ['session_id'],
-    },
-  },
 ];
 
 // ── 工具处理函数 ─────────────────────────────────────────────────────
