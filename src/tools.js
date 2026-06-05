@@ -6,6 +6,8 @@
  * Server API instead to keep schemas clean.
  */
 
+import { readFileSync, readdirSync } from 'fs';
+import { join } from 'path';
 import * as store from './store.js';
 import { truncateByBudget, estimateTokens, withBudgetInfo } from './token-budget.js';
 
@@ -16,17 +18,26 @@ export const TOOLS = [
     name: 'memory_add',
     description: `Add a memory entry to the shared store.
 
+AUTO-CAPTURE RULE: After completing ANY significant action (file edit, decision, discovery, config change, bug fix, architecture decision), automatically call this tool to save the key findings. Do NOT wait for the user to ask.
+
 3-layer isolation controlled by the 'level' param:
   - "auto" (default): project set → project-level; namespace set → namespace-level; else global
   - "global": visible to every agent and every project
   - "namespace": visible only to the current agent (e.g., Hermes' own preferences)
   - "project": visible only to the current agent's project
 
+Importance levels:
+  - "low":    Minor detail, transient note
+  - "normal": Useful info (default)
+  - "high":   Important decision, design choice, bug root cause
+  - "critical": Security issue, breaking change, irreversible action
+
 Usage tips (model instructions):
   - User corrects you → save as "namespace"
   - Project-specific convention → save as "project"
   - Universal knowledge → save as "global"
-  - Not sure → let "auto" decide`,
+  - Not sure → let "auto" decide
+  - IMPORTANT action → use importance="high" or "critical"`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -43,6 +54,10 @@ Usage tips (model instructions):
           description: '标签数组',
         },
         source: { type: 'string', description: '记忆来源' },
+        importance: {
+          type: 'string', enum: ['low', 'normal', 'high', 'critical'],
+          description: '重要程度，默认 normal。high 表示重要决策/设计，critical 表示安全/不可逆操作',
+        },
       },
       required: ['content'],
     },
@@ -258,6 +273,24 @@ Parameters:
     },
   },
   {
+    name: 'conversation_import',
+    description: `Import all session files from a directory into the conversations table.
+
+Reads all .jsonl files from MNEMONIC_SESSIONS_DIR (or the specified directory),
+saves each to the conversations table, overwriting any existing data.
+
+Use this for bulk migration — imports all sessions at once.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        namespace: { type: 'string', description: 'Agent namespace (default: from env)' },
+        project: { type: 'string', description: 'Default project for sessions without mapping' },
+        sessions_dir: { type: 'string', description: 'Path to session files directory (default: $MNEMONIC_SESSIONS_DIR)' },
+        session_map: { type: 'string', description: 'JSON mapping of session_id→project, e.g. {"session-1":"proj"}' },
+      },
+    },
+  },
+  {
     name: 'conversation_save',
     description: `Save a full conversation session for device migration.
 
@@ -319,6 +352,7 @@ export function createHandlers(getSessionContext) {
         project: args.project || ctx.project || '',
         tags: args.tags,
         source: args.source || '',
+        importance: args.importance || 'normal',
       });
       return { content: [{ type: 'text', text: JSON.stringify(result) }] };
     },
@@ -339,6 +373,7 @@ export function createHandlers(getSessionContext) {
           id: m.id,
           snippet: (m.content || '').substring(0, 120) + ((m.content || '').length > 120 ? '…' : ''),
           level: m.level,
+          importance: m.importance || 'normal',
           tags: m.tags,
           project: m.project,
           created: m.created,
@@ -419,11 +454,52 @@ export function createHandlers(getSessionContext) {
         project: args.project || ctx.project || '',
         tags,
         source: 'tick',
+        importance: 'low',
       });
       return { content: [{ type: 'text', text: JSON.stringify({ id: result.id, logged: true }) }] };
     },
 
     // ── 设备迁移 ──────────────────────────────────────────────────
+    conversation_import: (args) => {
+      const ctx = getSessionContext();
+      const sessionsDir = args.sessions_dir || process.env.MNEMONIC_SESSIONS_DIR;
+      if (!sessionsDir) {
+        return { content: [{ type: 'text', text: JSON.stringify({ error: 'sessions_dir required or set MNEMONIC_SESSIONS_DIR' }) }], isError: true };
+      }
+      const files = readdirSync(sessionsDir).filter(f => f.endsWith('.jsonl') && !f.includes('.bak'));
+      const namespace = args.namespace || ctx.namespace || 'default';
+      const defaultProject = args.project || ctx.project || '';
+
+      // Optional session→project mapping via JSON env var or parameter
+      let projectMap = {};
+      try {
+        const mapStr = args.session_map || process.env.MNEMONIC_SESSION_MAP || '{}';
+        projectMap = JSON.parse(mapStr);
+      } catch {}
+
+      let imported = 0, errors = 0;
+      for (const file of files) {
+        const sessionId = file.replace('.jsonl', '');
+        try {
+          const content = readFileSync(join(sessionsDir, file), 'utf8');
+          const lines = content.split('\n').filter(l => l.trim()).length;
+          const project = projectMap[sessionId] || defaultProject;
+          // Extract date from filename: desktop-YYYYMMDD... → YYYY-MM-DD
+          const dateMatch = sessionId.match(/(\d{4})(\d{2})(\d{2})/);
+          const createdDate = dateMatch ? `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}T00:00:00.000Z` : undefined;
+          store.convSave({
+            session_id: sessionId, namespace, project,
+            content, turn_count: lines, created: createdDate,
+            summary: `Imported from ${file} (${lines} turns)`,
+          });
+          imported++;
+        } catch (e) {
+          errors++;
+        }
+      }
+      return { content: [{ type: 'text', text: JSON.stringify({ imported, errors, total: files.length }) }] };
+    },
+
     conversation_save: (args) => {
       const ctx = getSessionContext();
       const result = store.convSave({

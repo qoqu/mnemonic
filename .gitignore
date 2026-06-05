@@ -5,3 +5,4 @@ data/
 *.bat
 start-mnemonic*
 startup.*
+builtin/

@@ -19,7 +19,7 @@ import {
   CallToolRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { createServer } from 'http';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, copyFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { getDb, close } from './db.js';
@@ -250,6 +250,19 @@ function handleApi(req, res, url) {
     return json(res, result);
   }
 
+  // POST /api/conversations/import — bulk import session files
+  if (method === 'POST' && pathname === '/api/conversations/import') {
+    // Use the MCP handler directly
+    const result = handlers.conversation_import({
+      sessions_dir: searchParams.get('sessions_dir') || undefined,
+      namespace: searchParams.get('namespace') || undefined,
+      project: searchParams.get('project') || undefined,
+    });
+    try { json(res, JSON.parse(result.content[0].text)); }
+    catch { json(res, result); }
+    return;
+  }
+
   json(res, { error: 'Not found' }, 404);
 }
 
@@ -348,16 +361,40 @@ async function startStdioMode() {
   if (buf) buf.drop();
 }
 
+// ── 启动时从同步盘导入 ─────────────────────────────────────────────
+
+function syncRestore() {
+  const syncDir = process.env.MNEMONIC_SYNC_DIR || process.env.MNEMONIC_DB_DIR;
+  if (!syncDir) return;
+  const localPath = join(__dirname, '..', 'data', 'memories.db');
+  const syncPath = join(syncDir, 'memories.db');
+  if (!existsSync(syncPath)) return;
+  // 本地 db 不存在或为空 → 从同步盘拉一份
+  if (!existsSync(localPath)) {
+    const localDir = join(__dirname, '..', 'data');
+    if (!existsSync(localDir)) mkdirSync(localDir, { recursive: true });
+    copyFileSync(syncPath, localPath);
+    // 也复制 WAL/SHM
+    for (const ext of ['-wal', '-shm']) {
+      try { copyFileSync(syncPath + ext, localPath + ext); } catch {}
+    }
+    process.stderr.write(`[mnemonic] Restored database from sync drive\n`);
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────
 
 function main() {
+  syncRestore();
   getDb();
-  startupHealthCheck();
+  // 先启动 MCP 服务，再慢慢做健康检查（避免阻塞 MCP 握手）
   if (PORT > 0) {
-    // HTTP 模式不需要 stderr 缓冲
     startHttpMode();
+    startupHealthCheck();
   } else {
     startStdioMode();
+    // stdio 模式下健康检查后延，不阻塞工具发现
+    setTimeout(() => startupHealthCheck(), 1000);
   }
 }
 
