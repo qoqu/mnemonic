@@ -34,19 +34,20 @@ MNEMONIC_PORT=3456 node src/index.js
 
 | 工具 | 作用 |
 |------|------|
-| `memory_add` | 添加记忆。level 自动判断 |
+| `memory_add` | 添加记忆。**自动捕捉**：Agent 在重要操作后自动保存，支持重要度 low/normal/high/critical |
 | `memory_search` | 渐进式 3 层搜索：`mode=index`（紧凑）或 `mode=full`（完整），支持 `budget=N` token 预算 |
-| `memory_remove` | 按 ID 或内容模糊匹配删除 |
-| `memory_update` | 按 ID 更新内容/标签/来源 |
-| `memory_list` | 按作用域浏览，按最近更新排序 |
-| `memory_stats` | 统计：各层级数量、7 天活跃度、标签分组 |
 | `memory_preview` | Layer 2 — 按 ID 列表取多条完整内容 |
 | `memory_get` | Layer 3 — 按 ID 取单条完整内容 |
-| `memory_log_tick` | 轻量会话日志——自动记录当前工作状态，不污染记忆库 |
-| `conversation_save` | 保存全量对话——设备迁移用，不在管理界面展示 |
+| `memory_remove` | 按 ID 或内容模糊匹配删除 |
+| `memory_update` | 按 ID 更新内容/标签/来源/重要度 |
+| `memory_list` | 按作用域浏览，支持 `budget=N` token 预算 |
+| `memory_stats` | 统计：各层级数量、7 天活跃度、标签分组 |
+| `memory_log_tick` | 轻量会话日志（自动 importance=low） |
+| `conversation_save` | 保存全量对话（设备迁移） |
 | `conversation_list` | 列出已保存的对话（仅元数据） |
 | `conversation_get` | 按 session_id 取全量对话内容 |
 | `conversation_remove` | 删除已保存的对话 |
+| `conversation_import` | 批量导入 session 文件到对话表（覆盖旧数据） |
 
 ## 渐进式搜索（token 感知）
 

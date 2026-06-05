@@ -35,19 +35,20 @@ MNEMONIC_PORT=3456 node src/index.js
 
 | Tool | What it does |
 |------|-------------|
-| `memory_add` | Add a memory. Level auto-detected: project set → `project`, namespace set → `namespace`, neither → `global` |
+| `memory_add` | Add a memory. **Auto-capture**: Agent automatically saves after significant actions. Supports importance: low/normal/high/critical |
 | `memory_search` | Progressive 3-layer search: `mode=index` (compact) or `mode=full` (verbose). Add `budget=N` for token limit |
 | `memory_preview` | Layer 2 — get selected memories by IDs with full content |
 | `memory_get` | Layer 3 — get a single memory by ID |
 | `memory_remove` | Remove by exact `id` or fuzzy `old_text` |
-| `memory_update` | Update content / tags / source / level / project by `id` |
+| `memory_update` | Update content / tags / source / level / project / importance by `id` |
 | `memory_list` | Browse by scope. Supports `budget=N` for token limit |
 | `memory_stats` | Stats: totals by level, 7d activity, tag groups |
-| `memory_log_tick` | Lightweight session tick — log what you're doing without polluting the store |
-| `conversation_save` | Save full conversation for device migration (not shown in UI) |
+| `memory_log_tick` | Lightweight session tick (auto importance=low) — log what you're doing |
+| `conversation_save` | Save full conversation for device migration |
 | `conversation_list` | List saved conversations (metadata only) |
 | `conversation_get` | Retrieve a full conversation by session_id |
 | `conversation_remove` | Remove a stored conversation |
+| `conversation_import` | Bulk import session files from directory, overwrites old data |
 
 ## Progressive search (token-aware)
 
