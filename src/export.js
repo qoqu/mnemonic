@@ -207,8 +207,18 @@ export function exportToKb({ project, since, tags, dryRun, namespace, type }) {
       if (store.isExported(mem.id, project, 'summary')) continue;
       const fm = buildFrontmatter(mem);
       const slug = (mem.content || '').replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, '_').substring(0, 40);
+      const fileRelPath = `${['', inbox, target.kb, `mnemonic_${mem.project || 'unknown'}_${slug}.md`].filter(Boolean).join('/')}`;
       writeFileSync(join(inboxDir, `mnemonic_${mem.project || 'unknown'}_${slug}.md`), fm, 'utf8');
       store.markExported(mem.id, project, 'summary');
+      // 创建骨架索引，让 Agent 能搜到知识库归档
+      store.add({
+        content: (mem.content || '').substring(0, 300) + ((mem.content || '').length > 300 ? '…' : ''),
+        level: 'project',
+        project: mem.project || project || '',
+        tags: ['kb-archive', ...(mem.tags || [])],
+        source: `kb:${fileRelPath}`,
+        importance: mem.importance || 'normal',
+      });
       results.summary++;
     }
   }
