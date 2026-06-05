@@ -47,7 +47,7 @@ MNEMONIC_PORT=3456 node src/index.js
 | `conversation_list` | 列出已保存的对话（仅元数据） |
 | `conversation_get` | 按 session_id 取全量对话内容 |
 | `conversation_remove` | 删除已保存的对话 |
-| `export_to_kb` | 导出新记忆到 Obsidian 知识库（会话结束时自动同步） |
+| `export_to_kb` | 导出新记忆到 Obsidian 知识库，同时创建骨架索引（`kb-archive` 标签）供 Agent 搜索 |
 | `conversation_import` | 批量导入 session 文件到对话表（覆盖旧数据） |
 
 ## 渐进式搜索（token 感知）
@@ -129,6 +129,21 @@ curl -X POST http://localhost:3456/api/log \
 | `low` | 会话 Tick、临时记录 | `memory_log_tick` 专用 |
 
 Agent 在文件编辑、决策、修复后自动调 `memory_add(importance="normal")`，无需每次手动说。
+
+## 知识库归档（kb-integration 分支）
+
+`export_to_kb` 做两件事：
+1. 导出完整内容为 `.md` 文件到 Obsidian 收件箱
+2. **在 mnemonic 中创建骨架索引**（打 `kb-archive` 标签）供 Agent 搜索
+
+Agent 可以搜索整个知识库归档：
+
+```
+memory_search(tags=["kb-archive"], project="mnemonic")
+→ 返回结构化骨架（type/topics/entities）
+→ source 字段指向 .md 文件路径
+→ 感兴趣的可以去 Obsidian 读全文
+```
 
 ## 三层隔离
 |------|--------|------|

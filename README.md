@@ -48,7 +48,7 @@ MNEMONIC_PORT=3456 node src/index.js
 | `conversation_list` | List saved conversations (metadata only) |
 | `conversation_get` | Retrieve a full conversation by session_id |
 | `conversation_remove` | Remove a stored conversation |
-| `export_to_kb` | Export new memories to Obsidian Vault (auto-sync at session end) |
+| `export_to_kb` | Export new memories to Obsidian Vault. Also creates skeleton indexes (tagged `kb-archive`) for Agent search |
 | `conversation_import` | Bulk import session files from directory, overwrites old data |
 
 ## Progressive search (token-aware)
@@ -130,6 +130,23 @@ Every memory has an importance level. Agent auto-saves after significant actions
 | `low` | Session ticks, transient notes | `memory_log_tick` only |
 
 Auto-capture: Agent calls `memory_add(importance="normal")` automatically after file edits, bug fixes, decisions, config changes. No need to say "remember this" for routine work.
+
+## Knowledge base archive (kb-integration branch)
+
+`export_to_kb` does two things:
+1. Exports full content as `.md` files to Obsidian Vault inbox
+2. **Creates skeleton indexes** in mnemonic (tagged `kb-archive`) for Agent search
+
+This means your Agent can search the entire knowledge base archive:
+
+```
+memory_search(tags=["kb-archive"], project="mnemonic")
+→ Returns structured skeletons with type/topics/entities
+→ source field shows the .md file path: "kb:📥/memory/xxx.md"
+→ Interested? Read the full .md file in Obsidian
+```
+
+Skeleton entries contain the first 300 chars as content — enough for the Agent to decide whether to open the full file.
 
 ## Layer model
 |-------|-----------|---------|
