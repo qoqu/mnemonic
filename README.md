@@ -8,7 +8,7 @@ Write memories from Hermes-Agent, query them from OpenClaw, list them from Claud
 
 ## Features
 
-- **15 MCP tools** — add, search, remove, update, list, stats, log, preview, get, conversation tools, progressive search with token budget
+- **14 MCP tools** — add, search, preview, get, remove, update, list, stats, log, conversation import/save/list/get/remove
 - **3-layer isolation** — global / namespace / project
 - **Dual transport** — stdio (local) **and** HTTP/SSE (cross-device)
 - **Admin UI** — built-in web interface at `http://localhost:PORT/`

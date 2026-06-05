@@ -8,7 +8,7 @@ Hermes 写的记忆，OpenClaw 能搜到，Claude Code 也能读到——但各�
 
 ## 特性
 
-- **15 个 MCP 工具** — 增删改查 + 渐进搜索（3层） + 自动日志 + 设备迁移 + token 预算
+- **14 个 MCP 工具** — 增删改查 + 渐进搜索 + 自动日志 + 对话导入 + 设备迁移
 - **三层隔离** — global / namespace / project
 - **双传输模式** — stdio（本地）+ HTTP/SSE（跨设备）
 - **管理界面** — 浏览器打开 `http://localhost:PORT/`
