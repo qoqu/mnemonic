@@ -10,6 +10,7 @@ import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import * as store from './store.js';
 import { truncateByBudget, estimateTokens, withBudgetInfo } from './token-budget.js';
+import { renderSkeletons, estimateSkeletonTokens } from './skeleton-renderer.js';
 
 // ── 工具元数据 ────────────────────────────────────────────────────────
 
@@ -64,13 +65,19 @@ Usage tips (model instructions):
   },
   {
     name: 'memory_search',
-    description: `Progressive search. Three layers:
+    description: `Progressive search with structured skeletons. Three layers:
 
-  Layer 1 — search(query, mode="index"):    return compact index (id + ~80 chars). ~50 tokens/item.
+  Layer 1 — search(query, mode="index"):    return structured skeleton (topics, entities, type, relations). ~100 tokens/item.
   Layer 2 — memory_preview(ids):            return selected items with full content.
   Layer 3 — memory_get(id):                 return a single item with full content.
 
-Default mode is "index" — use mode="full" for the traditional verbose output.`,
+The skeleton includes:
+  - topics: key concepts extracted from content
+  - entities: named technologies and references
+  - type: classification (architecture/decision/rule/bugfix/config/workflow/insight)
+  - relations: cross-references between projects (on "full" density)
+
+Budget-aware: pass budget=N to auto-adjust skeleton density.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -279,17 +286,19 @@ export function createHandlers(getSessionContext) {
       const budget = args.budget;
       const mode = args.mode || 'index';
       if (mode === 'index') {
-        let compact = memories.map(m => ({
-          id: m.id,
-          snippet: (m.content || '').substring(0, 120) + ((m.content || '').length > 120 ? '…' : ''),
-          level: m.level,
-          importance: m.importance || 'normal',
-          tags: m.tags,
-          project: m.project,
-          created: m.created,
-        }));
-        if (budget) compact = truncateByBudget(compact, budget, m => m.snippet);
-        return { content: [{ type: 'text', text: JSON.stringify(compact) }] };
+        const skeletons = renderSkeletons(memories, { budget });
+        // 按 token 预算截断骨架
+        let result = skeletons;
+        if (budget) {
+          const withCost = result.map(s => ({ s, cost: estimateSkeletonTokens(s) }));
+          let total = 0, idx = 0;
+          while (idx < withCost.length && total + withCost[idx].cost <= budget) {
+            total += withCost[idx].cost;
+            idx++;
+          }
+          result = withCost.slice(0, idx).map(w => w.s);
+        }
+        return { content: [{ type: 'text', text: JSON.stringify(result) }] };
       }
       const truncated = budget ? truncateByBudget(memories, budget) : memories;
       return { content: [{ type: 'text', text: JSON.stringify(truncated) }] };
