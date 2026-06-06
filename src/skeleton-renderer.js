@@ -124,6 +124,26 @@ export function resolveDensity(content, budget) {
   return 'minimal';
 }
 
+// ── 秘密编校（Ailoom 启发）──────────────────────────────────────
+
+const SECRET_PATTERNS = [
+  /['"]?(?:api[_-]?key|apikey|secret|token|password|passwd|private[_-]?key)['"]?\s*[:=]\s*['"][^'"]+['"]/gi,
+  /(['"])(?:sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36,}|xox[bpras]-[a-zA-Z0-9-]+)\1/g,
+  /['"](?:MNEMONIC_DB_DIR|MNEMONIC_SYNC_DIR|DB_DIR|SYNC_DIR|MNEMONIC_KB_PATH)['"]\s*[:=]\s*['"][^'"]+['"]/g,
+];
+
+function redactContent(content) {
+  if (!content) return content;
+  for (const re of SECRET_PATTERNS) {
+    content = content.replace(re, (match) => {
+      const eqIdx = match.indexOf('=') > -1 ? match.indexOf('=') : match.indexOf(':');
+      if (eqIdx > -1) return match.substring(0, eqIdx + 1) + ' "***REDACTED***"';
+      return '***REDACTED***';
+    });
+  }
+  return content;
+}
+
 // ── 主渲染函数 ────────────────────────────────────────────────────────
 
 /**
@@ -136,7 +156,7 @@ export function resolveDensity(content, budget) {
  * @returns {object} 骨架对象
  */
 export function renderSkeleton(memory, options = {}) {
-  const content = memory.content || '';
+  const content = options.redact !== false ? redactContent(memory.content || '') : (memory.content || '');
   const density = resolveDensity(content, options.budget);
 
   // 基础骨架（始终包含）
