@@ -8,7 +8,8 @@ Write memories from Hermes-Agent, query them from OpenClaw, list them from Claud
 
 ## Features
 
-- **15 MCP tools** — add, search, preview, get, remove, update, list, stats, log, export to KB, conversation import/save/list/get/remove
+- **14 MCP tools**
+- **Watchdog** — auto-restart on crash, health check every 30s (`node watchdog.cjs`) — add, search, preview, get, remove, update, list, stats, log, conversation import/save/list/get/remove
 - **3-layer isolation** — global / namespace / project
 - **Dual transport** — stdio (local) **and** HTTP/SSE (cross-device)
 - **Admin UI** — built-in web interface at `http://localhost:PORT/`
@@ -31,9 +32,46 @@ MNEMONIC_PORT=3456 node src/index.js
 # → open http://localhost:3456/
 ```
 
-## Tools
+## Watchdog (process daemon)
 
-| Tool | What it does |
+Auto-restart mnemonic on crash. Health check every 30 seconds.
+
+```bash
+# Start with watchdog (recommended for production)
+set MNEMONIC_DB_DIR=./data
+set MNEMONIC_NAMESPACE=reasonix
+set MNEMONIC_SYNC_DIR=./sync-backup
+node watchdog.cjs
+```
+
+Or with a local `startup.cjs` (per-machine, not in git):
+
+```bash
+# startup.cjs example:
+node -e "
+const { spawn } = require('child_process');
+spawn('node', ['watchdog.cjs'], {
+  env: { ...process.env,
+    MNEMONIC_DB_DIR: './data',
+    MNEMONIC_NAMESPACE: 'reasonix',
+    MNEMONIC_SYNC_DIR: './sync',
+    MNEMONIC_PORT: '3457',
+  }, detached: true, windowsHide: true
+}).unref();
+"
+```
+
+Environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MNEMONIC_PORT` | `3457` | MCP HTTP port |
+| `MNEMONIC_DB_DIR` | `./data` | Database directory |
+| `MNEMONIC_NAMESPACE` | `default` | Agent namespace |
+| `MNEMONIC_SYNC_DIR` | (none) | Sync drive backup (heartbeat) |
+| `MNEMONIC_WATCH_INTERVAL` | `30` | Health check interval (seconds) |
+
+## Tools
 |------|-------------|
 | `memory_add` | Add a memory. **Auto-capture**: Agent automatically saves after significant actions. Supports importance: low/normal/high/critical |
 | `memory_search` | Progressive 3-layer search: `mode=index` (compact) or `mode=full` (verbose). Add `budget=N` for token limit |
@@ -298,6 +336,7 @@ mnemonic/
 │   ├── store.js      # CRUD operations with 3-layer isolation
 │   ├── tools.js      # MCP tool definitions and handlers
 │   └── test.js       # End-to-end test
+├── watchdog.cjs      # Process daemon (auto-restart, health check)
 ├── README.md
 ├── package.json
 ├── LICENSE
