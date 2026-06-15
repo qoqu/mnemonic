@@ -8,7 +8,7 @@ Write memories from Hermes-Agent, query them from OpenClaw, list them from Claud
 
 ## Features
 
-- **14 MCP tools**
+- **15 MCP tools**
 - **Watchdog** — auto-restart on crash, health check every 30s (`node watchdog.cjs`) — add, search, preview, get, remove, update, list, stats, log, conversation import/save/list/get/remove
 - **3-layer isolation** — global / namespace / project
 - **Dual transport** — stdio (local) **and** HTTP/SSE (cross-device)
@@ -86,6 +86,7 @@ Environment variables:
 | `conversation_list` | List saved conversations (metadata only) |
 | `conversation_get` | Retrieve a full conversation by session_id |
 | `conversation_remove` | Remove a stored conversation |
+| `export_to_kb` | Export new memories to Obsidian Vault. Creates skeleton indexes (tagged `kb-archive`) for Agent search |
 | `conversation_import` | Bulk import session files from directory, overwrites old data |
 
 ## Progressive search (token-aware)
