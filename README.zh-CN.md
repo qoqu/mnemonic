@@ -8,7 +8,8 @@ Hermes 写的记忆，OpenClaw 能搜到，Claude Code 也能读到——但各�
 
 ## 特性
 
-- **14 个 MCP 工具** — 增删改查 + 渐进搜索 + 自动日志 + 对话导入 + 设备迁移
+- **15 个 MCP 工具** — 增删改查 + 渐进搜索 + 自动日志 + 知识库导出 + 对话导入 + 设备迁移
+- **Watchdog** — 进程守护，崩溃自动重启，每 30 秒健康检查
 - **三层隔离** — global / namespace / project
 - **双传输模式** — stdio（本地）+ HTTP/SSE（跨设备）
 - **管理界面** — 浏览器打开 `http://localhost:PORT/`
@@ -30,6 +31,28 @@ MNEMONIC_PORT=3456 node src/index.js
 # → 浏览器打开 http://localhost:3456/
 ```
 
+## Watchdog（进程守护）
+
+崩溃自动重启，每 30 秒健康检查。
+
+```bash
+# 使用 watchdog 启动（推荐生产环境）
+set MNEMONIC_DB_DIR=./data
+set MNEMONIC_NAMESPACE=reasonix
+set MNEMONIC_SYNC_DIR=./sync-backup
+node watchdog.cjs
+```
+
+环境变量：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `MNEMONIC_PORT` | `3457` | MCP HTTP 端口 |
+| `MNEMONIC_DB_DIR` | `./data` | 数据库目录 |
+| `MNEMONIC_NAMESPACE` | `default` | Agent 命名空间 |
+| `MNEMONIC_SYNC_DIR` | (无) | 同步盘备份目录 |
+| `MNEMONIC_WATCH_INTERVAL` | `30` | 健康检查间隔（秒） |
+
 ## 工具
 
 | 工具 | 作用 |
@@ -47,6 +70,7 @@ MNEMONIC_PORT=3456 node src/index.js
 | `conversation_list` | 列出已保存的对话（仅元数据） |
 | `conversation_get` | 按 session_id 取全量对话内容 |
 | `conversation_remove` | 删除已保存的对话 |
+| `export_to_kb` | 导出新记忆到 Obsidian 知识库，同时创建骨架索引（`kb-archive` 标签）供 Agent 搜索 |
 | `conversation_import` | 批量导入 session 文件到对话表（覆盖旧数据） |
 
 ## 渐进式搜索（token 感知）
@@ -278,6 +302,7 @@ mnemonic/
 │   ├── store.js      # 三层隔离 CRUD
 │   ├── tools.js      # MCP 工具定义
 │   └── test.js       # 端到端测试
+├── watchdog.cjs      # 进程守护（自动重启 + 健康检查）
 ├── README.md
 ├── README.zh-CN.md
 ├── package.json
