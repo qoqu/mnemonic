@@ -47,14 +47,11 @@ function extractEntities(content) {
   for (const kw of KNOWN_ENTITIES) {
     if (content.includes(kw)) entities.push(kw);
   }
-  // 提取引号中的词
-  const quoted = content.match(/[「『""]?([^「『""」』\s]{2,30})[」』""]?/g);
-  if (quoted) {
-    for (const q of quoted) {
-      const clean = q.replace(/[「『""」』]/g, '');
-      if (clean.length >= 2 && clean.length <= 30 && !entities.includes(clean)) {
-        entities.push(clean);
-      }
+  // 提取项目名（中文/英文词汇，4-15字）
+  const found = content.match(/[A-Z][a-zA-Z0-9_-]{2,20}/g);
+  if (found) {
+    for (const f of found) {
+      if (!entities.includes(f)) entities.push(f);
     }
   }
   return [...new Set(entities)].slice(0, 10);
@@ -121,10 +118,30 @@ function extractRelations(content) {
 export function resolveDensity(content, budget) {
   if (!content) return 'minimal';
   const len = content.length;
-  if (budget && budget < 100) return 'minimal';
-  if (len > 500) return 'full';
-  if (len > 200) return 'standard';
+  if (budget && budget < 50) return 'minimal';
+  if (len > 300) return 'full';
+  if (len > 60) return 'standard';
   return 'minimal';
+}
+
+// ── 秘密编校（Ailoom 启发）──────────────────────────────────────
+
+const SECRET_PATTERNS = [
+  /['"]?(?:api[_-]?key|apikey|secret|token|password|passwd|private[_-]?key)['"]?\s*[:=]\s*['"][^'"]+['"]/gi,
+  /(['"])(?:sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36,}|xox[bpras]-[a-zA-Z0-9-]+)\1/g,
+  /['"](?:MNEMONIC_DB_DIR|MNEMONIC_SYNC_DIR|DB_DIR|SYNC_DIR|MNEMONIC_KB_PATH)['"]\s*[:=]\s*['"][^'"]+['"]/g,
+];
+
+function redactContent(content) {
+  if (!content) return content;
+  for (const re of SECRET_PATTERNS) {
+    content = content.replace(re, (match) => {
+      const eqIdx = match.indexOf('=') > -1 ? match.indexOf('=') : match.indexOf(':');
+      if (eqIdx > -1) return match.substring(0, eqIdx + 1) + ' "***REDACTED***"';
+      return '***REDACTED***';
+    });
+  }
+  return content;
 }
 
 // ── 主渲染函数 ────────────────────────────────────────────────────────
@@ -139,7 +156,7 @@ export function resolveDensity(content, budget) {
  * @returns {object} 骨架对象
  */
 export function renderSkeleton(memory, options = {}) {
-  const content = memory.content || '';
+  const content = options.redact !== false ? redactContent(memory.content || '') : (memory.content || '');
   const density = resolveDensity(content, options.budget);
 
   // 基础骨架（始终包含）

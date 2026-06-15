@@ -8,6 +8,7 @@ import { spawn } from 'child_process';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { tmpdir } from 'os';
+import { rmSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const testDir = join(tmpdir(), 'mnemonic-test-' + Date.now());
@@ -126,6 +127,7 @@ async function test() {
 
   console.log('\n🎉 全部测试通过');
   server.kill();
+  try { rmSync(testDir, { recursive: true, force: true }); } catch {}
   process.exit(0);
 }
 

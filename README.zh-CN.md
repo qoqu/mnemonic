@@ -47,7 +47,6 @@ MNEMONIC_PORT=3456 node src/index.js
 | `conversation_list` | 列出已保存的对话（仅元数据） |
 | `conversation_get` | 按 session_id 取全量对话内容 |
 | `conversation_remove` | 删除已保存的对话 |
-| `export_to_kb` | 导出新记忆到 Obsidian 知识库，同时创建骨架索引（`kb-archive` 标签）供 Agent 搜索 |
 | `conversation_import` | 批量导入 session 文件到对话表（覆盖旧数据） |
 
 ## 渐进式搜索（token 感知）

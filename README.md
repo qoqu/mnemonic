@@ -48,7 +48,6 @@ MNEMONIC_PORT=3456 node src/index.js
 | `conversation_list` | List saved conversations (metadata only) |
 | `conversation_get` | Retrieve a full conversation by session_id |
 | `conversation_remove` | Remove a stored conversation |
-| `export_to_kb` | Export new memories to Obsidian Vault. Also creates skeleton indexes (tagged `kb-archive`) for Agent search |
 | `conversation_import` | Bulk import session files from directory, overwrites old data |
 
 ## Progressive search (token-aware)

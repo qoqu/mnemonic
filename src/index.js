@@ -28,6 +28,7 @@ import { exportToKb } from './export.js';
 import * as store from './store.js';
 import { installStderrBuffer, emitDiagnostic, emitBlockingError } from './io-discipline.js';
 import { startupHealthCheck, healthCheck } from './health.js';
+import { renderSkeletons } from './skeleton-renderer.js';
 import { startSyncHeartbeat } from './sync-heartbeat.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -120,11 +121,8 @@ function handleApi(req, res, url) {
       limit: parseInt(searchParams.get('limit') || '50', 10),
     });
     if (mode === 'index') {
-      return json(res, memories.map(m => ({
-        id: m.id,
-        snippet: (m.content || '').substring(0, 120) + ((m.content || '').length > 120 ? '…' : ''),
-        level: m.level, tags: m.tags, project: m.project, created: m.created,
-      })));
+      const budget = parseInt(searchParams.get('budget') || '0', 10) || undefined;
+      return json(res, renderSkeletons(memories, { budget: budget }));
     }
     return json(res, memories);
   }
