@@ -7,7 +7,7 @@
  */
 
 import { getDb } from './db.js';
-import { copyFileSync, existsSync, mkdirSync } from 'fs';
+import { copyFileSync, existsSync, mkdirSync, statSync } from 'fs';
 import { join } from 'path';
 import { emitDiagnostic } from './io-discipline.js';
 
@@ -39,7 +39,6 @@ function doBackup(syncDir) {
     const dbPath = db.name; // 当前数据库文件路径
 
     // 检查文件是否有变化（避免不必要的复制）
-    const { statSync } = require('fs');
     let currentSize;
     try { currentSize = statSync(dbPath).size; } catch { return; }
     if (currentSize === _lastSize) return; // 无变化，跳过
