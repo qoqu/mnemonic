@@ -4,5 +4,6 @@ data/
 .env
 *.bat
 start-mnemonic*
-startup.*
+# startup.cjs is per-machine local override; the generic template is watchdog.js
+startup.cjs
 builtin/
